@@ -43,7 +43,7 @@ export function Navbar({ user }: NavbarProps) {
           </span>
 
           {/* Clerk UserButton — handles avatar, profile, sign-out */}
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
       </div>
     </nav>
