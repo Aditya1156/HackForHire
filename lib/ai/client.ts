@@ -1,17 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-let client: Anthropic | null = null;
+let genAI: GoogleGenerativeAI | null = null;
 
-export function getAIClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-    });
+function getAIClient(): GoogleGenerativeAI {
+  if (!genAI) {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   }
-  return client;
+  return genAI;
 }
 
-// Safe AI call with retry
+// Safe AI call with retry + exponential backoff
 export async function callAI(
   systemPrompt: string,
   userMessage: string,
@@ -22,18 +20,19 @@ export async function callAI(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const response = await ai.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: options?.maxTokens ?? 1000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
+      const model = ai.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          maxOutputTokens: options?.maxTokens ?? 1000,
+          temperature: 0.3,
+        },
       });
 
-      const textBlock = response.content.find((b) => b.type === "text");
-      return textBlock?.text ?? "";
-    } catch (error: any) {
+      const result = await model.generateContent(userMessage);
+      return result.response.text();
+    } catch (error: unknown) {
       if (attempt === maxRetries) throw error;
-      // Exponential backoff
       await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
     }
   }
