@@ -35,7 +35,7 @@ export function ScoreCard({ totalScore, maxTotalScore, airsScore, domain }: Scor
             <span className="text-sm text-gray-500 capitalize">{domain} Assessment</span>
           )}
         </div>
-        <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent rounded-xl flex items-center justify-center">
+        <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center">
           <Trophy className="w-6 h-6 text-white" />
         </div>
       </div>

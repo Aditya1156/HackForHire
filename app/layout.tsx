@@ -31,7 +31,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-gray-50 font-sans antialiased">
-        <ClerkProvider>
+        <ClerkProvider afterSignOutUrl="/">
           {children}
         </ClerkProvider>
       </body>

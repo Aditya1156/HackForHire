@@ -65,7 +65,7 @@ const DOMAIN_COLORS: Record<string, string> = {
   coding: "#f97316",
   hr: "#ec4899",
   situational: "#14b8a6",
-  Mixed: "#6366f1",
+  Mixed: "#0891b2",
 };
 
 const DOMAIN_BADGE: Record<string, string> = {
@@ -141,7 +141,7 @@ export default function StudentDashboardPage() {
     <AuthGuard requiredRole="student">
       <div className="space-y-8">
         {/* Welcome Banner */}
-        <div className="bg-gradient-to-r from-primary-600 to-accent rounded-2xl p-6 text-white shadow-lg">
+        <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -161,7 +161,7 @@ export default function StudentDashboardPage() {
                 Student
               </span>
               <span className="bg-white/20 backdrop-blur-sm border border-white/30 text-white text-xs px-3 py-1.5 rounded-full">
-                Versatile Evaluator
+                Vulcan Prep 360
               </span>
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function StudentDashboardPage() {
             {/* Quick Actions */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Link href="/student/test">
-                <div className="card-hover p-6 bg-gradient-to-br from-indigo-500 to-primary-600 text-white cursor-pointer group">
+                <div className="card-hover p-6 bg-gradient-to-br from-cyan-500 to-blue-600 text-white cursor-pointer group">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                       <FileText className="w-7 h-7" />
@@ -259,7 +259,7 @@ export default function StudentDashboardPage() {
               </Link>
 
               <Link href="/student/interview">
-                <div className="card-hover p-6 bg-gradient-to-br from-accent to-pink-600 text-white cursor-pointer group">
+                <div className="card-hover p-6 bg-gradient-to-br from-blue-500 to-blue-700 text-white cursor-pointer group">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Mic className="w-7 h-7" />
@@ -315,9 +315,9 @@ export default function StudentDashboardPage() {
                       <Line
                         type="monotone"
                         dataKey="percentage"
-                        stroke="#4f46e5"
+                        stroke="#0891b2"
                         strokeWidth={2}
-                        dot={{ fill: "#4f46e5", r: 4 }}
+                        dot={{ fill: "#0891b2", r: 4 }}
                         activeDot={{ r: 6 }}
                       />
                     </LineChart>

@@ -9,22 +9,56 @@ function getAIClient(): GoogleGenerativeAI {
   return genAI;
 }
 
-// Safe AI call with retry + exponential backoff (handles 429 rate limits)
+// Groq fallback via REST API (OpenAI-compatible)
+async function callGroq(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number
+): Promise<string> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Groq API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+// Safe AI call: tries Gemini first, falls back to Groq on failure
 export async function callAI(
   systemPrompt: string,
   userMessage: string,
   options?: { maxTokens?: number; retries?: number }
 ): Promise<string> {
-  const ai = getAIClient();
-  const maxRetries = options?.retries ?? 3;
+  const maxTokens = options?.maxTokens ?? 1500;
+  const maxRetries = options?.retries ?? 2;
 
+  // Try Gemini first
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
+      const ai = getAIClient();
       const model = ai.getGenerativeModel({
         model: "gemini-2.0-flash",
         systemInstruction: systemPrompt,
         generationConfig: {
-          maxOutputTokens: options?.maxTokens ?? 1500,
+          maxOutputTokens: maxTokens,
           temperature: 0.3,
         },
       });
@@ -32,22 +66,25 @@ export async function callAI(
       const result = await model.generateContent(userMessage);
       return result.response.text();
     } catch (error: unknown) {
-      if (attempt === maxRetries) throw error;
-
-      // 429 rate limit → wait longer before retry
       const is429 =
         error instanceof Error &&
         (error.message.includes("429") || error.message.includes("Too Many Requests"));
 
-      const waitMs = is429
-        ? 10000 + attempt * 5000   // 10s, 15s, 20s for rate limits
-        : Math.pow(2, attempt) * 1000; // 1s, 2s, 4s for other errors
+      // On rate limit or last attempt, break to Groq fallback
+      if (is429 || attempt === maxRetries) break;
 
+      const waitMs = Math.pow(2, attempt) * 1000;
       await new Promise((r) => setTimeout(r, waitMs));
     }
   }
 
-  throw new Error("AI call failed after retries");
+  // Fallback to Groq
+  if (process.env.GROQ_API_KEY) {
+    console.log("[AI] Gemini failed, falling back to Groq");
+    return callGroq(systemPrompt, userMessage, maxTokens);
+  }
+
+  throw new Error("AI call failed: Gemini exhausted and no Groq API key configured");
 }
 
 // Parse AI JSON response safely

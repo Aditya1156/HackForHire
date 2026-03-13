@@ -169,7 +169,7 @@ export default function AdminDashboardPage() {
                 icon={Users}
                 label="Students"
                 value={data.stats.totalStudents}
-                color="bg-indigo-100 text-indigo-600"
+                color="bg-cyan-100 text-cyan-600"
               />
               <StatCard
                 icon={BookOpen}
@@ -271,7 +271,7 @@ export default function AdminDashboardPage() {
                         {data.domainDistribution.map((entry) => (
                           <Cell
                             key={entry.domain}
-                            fill={DOMAIN_COLORS[entry.domain] || "#6366f1"}
+                            fill={DOMAIN_COLORS[entry.domain] || "#0891b2"}
                           />
                         ))}
                       </Bar>

@@ -28,7 +28,7 @@ const DOMAIN_COLORS: Record<string, string> = {
   coding: "#f97316",
   hr: "#ec4899",
   situational: "#14b8a6",
-  general: "#6366f1",
+  general: "#0891b2",
 };
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -72,7 +72,7 @@ export function ProgressChart({ scores }: ProgressChartProps) {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         {scores.map((s) => {
           const pct = s.maxScore > 0 ? Math.round((s.score / s.maxScore) * 100) : 0;
-          const color = DOMAIN_COLORS[s.domain] ?? "#6366f1";
+          const color = DOMAIN_COLORS[s.domain] ?? "#0891b2";
           return (
             <div key={s.domain} className="bg-gray-50 rounded-lg p-3 border border-gray-100">
               <p className="text-xs font-medium text-gray-500 capitalize mb-1">{s.domain}</p>
@@ -111,7 +111,7 @@ export function ProgressChart({ scores }: ProgressChartProps) {
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={DOMAIN_COLORS[entry.domain] ?? "#6366f1"}
+                fill={DOMAIN_COLORS[entry.domain] ?? "#0891b2"}
               />
             ))}
           </Bar>

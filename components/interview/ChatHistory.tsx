@@ -65,7 +65,7 @@ export function ChatHistory({ messages }: ChatHistoryProps) {
               className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center
                 ${isInterviewer
                   ? "bg-primary-100 text-primary-600"
-                  : "bg-indigo-600 text-white"
+                  : "bg-cyan-600 text-white"
                 }`}
             >
               {isInterviewer ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
@@ -77,7 +77,7 @@ export function ChatHistory({ messages }: ChatHistoryProps) {
                 className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm
                   ${isInterviewer
                     ? "bg-gray-100 text-gray-800 rounded-tl-sm"
-                    : "bg-indigo-600 text-white rounded-tr-sm"
+                    : "bg-cyan-600 text-white rounded-tr-sm"
                   }`}
               >
                 {msg.content}

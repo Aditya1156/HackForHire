@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 interface AIAvatarProps {
   isThinking?: boolean;
   isSpeaking?: boolean;
@@ -27,39 +29,28 @@ export function AIAvatar({
 
         {/* Main avatar circle */}
         <div
-          className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-lg
+          className={`relative w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden
             ${isThinking
-              ? "bg-gradient-to-br from-amber-400 to-orange-500 animate-pulse"
+              ? "bg-amber-50 animate-pulse"
               : isSpeaking
-              ? "bg-gradient-to-br from-primary-500 to-primary-700"
-              : "bg-gradient-to-br from-primary-600 to-navy"
+              ? "bg-white"
+              : "bg-white"
             }`}
         >
-          {/* Bot face SVG */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`w-9 h-9 ${isThinking ? "animate-spin [animation-duration:3s]" : ""}`}
-          >
-            <rect x="2" y="8" width="20" height="13" rx="3" />
-            <circle cx="9" cy="14" r="1.5" fill="white" stroke="none" />
-            <circle cx="15" cy="14" r="1.5" fill="white" stroke="none" />
-            <path d="M9 19h6" />
-            <path d="M12 5v3M8 5.5l1.5 2.5M16 5.5l-1.5 2.5" />
-            <circle cx="12" cy="4" r="1.5" fill="white" stroke="none" />
-          </svg>
+          <Image
+            src="/image/VULCAN Logo_transparent.png"
+            alt="Vulcan AI"
+            width={56}
+            height={56}
+            className={isThinking ? "animate-spin [animation-duration:3s]" : ""}
+          />
 
           {/* Thinking dots */}
           {isThinking && (
             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-200 animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-200 animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-200 animate-bounce [animation-delay:300ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:300ms]" />
             </div>
           )}
         </div>

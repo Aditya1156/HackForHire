@@ -102,8 +102,8 @@ export function AIRSChart({
           <Radar
             name="Score"
             dataKey="score"
-            stroke="#6366f1"
-            fill="#6366f1"
+            stroke="#0891b2"
+            fill="#0891b2"
             fillOpacity={0.25}
             strokeWidth={2}
           />

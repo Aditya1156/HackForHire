@@ -81,7 +81,7 @@ function ScoreRing({ score, size = 160 }: { score: number; size?: number }) {
 
   const ringColor =
     score >= 80 ? "#22c55e"
-    : score >= 70 ? "#6366f1"
+    : score >= 70 ? "#0891b2"
     : score >= 60 ? "#3b82f6"
     : score >= 50 ? "#f59e0b"
     : "#ef4444";
@@ -362,8 +362,8 @@ export default function InterviewReportPage({
                 <Radar
                   name="Score"
                   dataKey="score"
-                  stroke="#6366f1"
-                  fill="#6366f1"
+                  stroke="#0891b2"
+                  fill="#0891b2"
                   fillOpacity={0.3}
                   strokeWidth={2}
                 />
@@ -455,7 +455,7 @@ export default function InterviewReportPage({
                 <div key={idx} className={`p-4 flex items-start gap-3 ${isInterviewer ? "" : "flex-row-reverse bg-gray-50"}`}>
                   <div
                     className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center
-                      ${isInterviewer ? "bg-primary-100 text-primary-600" : "bg-indigo-600 text-white"}`}
+                      ${isInterviewer ? "bg-primary-100 text-primary-600" : "bg-cyan-600 text-white"}`}
                   >
                     {isInterviewer ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                   </div>
