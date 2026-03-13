@@ -50,6 +50,8 @@ interface QuestionFormProps {
   questionId?: string;
 }
 
+interface MatchingPair { id: number; item: string; correctMatch: string; }
+
 interface QuestionFormData {
   folderId: string;
   domain: string;
@@ -64,6 +66,9 @@ interface QuestionFormData {
     instructions: string;
     options: MCQOption[];
     blanks: Blank[];
+    matchingPairs: MatchingPair[];
+    multiSelectCorrect: string[];
+    wordLimit: string;
   };
   rubric: {
     criteria: RubricCriteria[];
@@ -203,7 +208,7 @@ const defaultForm: QuestionFormData = {
   type: "",
   difficulty: "medium",
   answerFormat: "text",
-  content: { text: "", formula: "", imageUrl: "", audioUrl: "", instructions: "", options: [], blanks: [] },
+  content: { text: "", formula: "", imageUrl: "", audioUrl: "", instructions: "", options: [], blanks: [], matchingPairs: [], multiSelectCorrect: [], wordLimit: "" },
   rubric: { criteria: [], maxScore: 10, gradingLogic: "" },
   expectedAnswer: "",
   testCases: [],
@@ -242,9 +247,11 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
     }).catch(() => {});
   }, []);
 
-  // Auto-set answer format based on type and blanks
+  // Auto-set answer format based on type and blanks (skip if manually set to matching/multi_select)
   useEffect(() => {
     setForm((prev) => {
+      // Don't override if manually set to matching or multi_select
+      if (prev.answerFormat === "matching" || prev.answerFormat === "multi_select") return prev;
       const hasBlanks = (prev.content.blanks ?? []).length > 0;
       const map: Record<string, string> = {
         code: "code", voice: "voice", mcq: "mcq",
@@ -371,6 +378,33 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
     updateContent("blanks", updated);
   }
 
+  // Matching pair helpers
+  function addMatchingPair() {
+    const pairs = form.content.matchingPairs ?? [];
+    const nextId = pairs.length > 0 ? Math.max(...pairs.map((p) => p.id)) + 1 : 25;
+    updateContent("matchingPairs", [...pairs, { id: nextId, item: "", correctMatch: "" }]);
+  }
+  function updateMatchingPair(index: number, field: "item" | "correctMatch", value: string) {
+    const updated = (form.content.matchingPairs ?? []).map((p, i) =>
+      i === index ? { ...p, [field]: value } : p
+    );
+    updateContent("matchingPairs", updated);
+  }
+  function removeMatchingPair(index: number) {
+    const updated = (form.content.matchingPairs ?? []).filter((_, i) => i !== index)
+      .map((p, i) => ({ ...p, id: i + 25 }));
+    updateContent("matchingPairs", updated);
+  }
+
+  // Multi-select correct toggle
+  function toggleMultiSelectCorrect(label: string) {
+    const current = form.content.multiSelectCorrect ?? [];
+    const updated = current.includes(label)
+      ? current.filter((l) => l !== label)
+      : [...current, label];
+    updateContent("multiSelectCorrect", updated);
+  }
+
   // S3 upload helper
   async function uploadToS3(
     file: File,
@@ -450,8 +484,11 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
           ...(form.content.imageUrl ? { imageUrl: form.content.imageUrl } : {}),
           ...(form.content.audioUrl ? { audioUrl: form.content.audioUrl } : {}),
           ...(form.content.instructions ? { instructions: form.content.instructions } : {}),
-          ...(form.type === "mcq" ? { options: form.content.options } : {}),
+          ...((form.type === "mcq" || form.answerFormat === "matching" || form.answerFormat === "multi_select" || form.answerFormat === "mcq") ? { options: form.content.options } : {}),
           ...(form.content.blanks.length > 0 ? { blanks: form.content.blanks } : {}),
+          ...((form.content.matchingPairs ?? []).length > 0 ? { matchingPairs: form.content.matchingPairs } : {}),
+          ...((form.content.multiSelectCorrect ?? []).length > 0 ? { multiSelectCorrect: form.content.multiSelectCorrect } : {}),
+          ...(form.content.wordLimit ? { wordLimit: form.content.wordLimit } : {}),
         },
         testCases: form.type === "code" ? form.testCases : undefined,
       };
@@ -579,8 +616,8 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
               />
             </div>
 
-            {/* ── MCQ Options ── */}
-            {form.type === "mcq" && (
+            {/* ── MCQ Options (also for matching & multi-select) ── */}
+            {(form.type === "mcq" || form.answerFormat === "matching" || form.answerFormat === "multi_select" || form.answerFormat === "mcq") && (
               <div className="bg-violet-50 rounded-2xl border border-violet-200 p-5 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -909,6 +946,159 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
                     <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>Each blank is scored equally. Total = max score ÷ {form.content.blanks.length} blanks = {(form.rubric.maxScore / form.content.blanks.length).toFixed(1)} pts each</span>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Answer Format Selector (for audio/listening questions) ── */}
+            {form.type === "audio" && (
+              <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5 mb-4">
+                <h3 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-1.5">
+                  <CircleDot className="w-4 h-4" />
+                  Listening Answer Format
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: "fill_in_blanks", label: "Fill Blanks", desc: "Type short answers" },
+                    { id: "matching", label: "Matching", desc: "Match items to options" },
+                    { id: "multi_select", label: "Multi-Select", desc: "Pick multiple options" },
+                    { id: "mcq", label: "Single MCQ", desc: "Pick one option" },
+                  ].map((fmt) => (
+                    <button
+                      key={fmt.id}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, answerFormat: fmt.id }))}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        form.answerFormat === fmt.id
+                          ? "border-amber-500 bg-amber-100 shadow-sm"
+                          : "border-amber-200 bg-white hover:border-amber-300"
+                      }`}
+                    >
+                      <p className={`text-xs font-bold ${form.answerFormat === fmt.id ? "text-amber-800" : "text-gray-700"}`}>{fmt.label}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">{fmt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Word limit for fill-in-blanks */}
+                {form.answerFormat === "fill_in_blanks" && (
+                  <div className="mt-3">
+                    <label className="text-xs font-medium text-amber-700 mb-1 block">Word Limit Instruction</label>
+                    <input
+                      type="text"
+                      value={form.content.wordLimit ?? ""}
+                      onChange={(e) => updateContent("wordLimit", e.target.value)}
+                      placeholder="e.g. NO MORE THAN THREE WORDS AND/OR A NUMBER"
+                      className="w-full px-3 py-2 rounded-lg border border-amber-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Matching Pairs Builder ── */}
+            {form.answerFormat === "matching" && (
+              <div className="bg-violet-50 rounded-2xl border border-violet-200 p-5 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-violet-800 flex items-center gap-1.5">
+                      <Shuffle className="w-4 h-4" />
+                      Matching Pairs
+                    </h3>
+                    <p className="text-xs text-violet-600 mt-0.5">
+                      Add items and their correct option match (A-F). Options are defined in the MCQ section above.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addMatchingPair}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-200 text-violet-800 text-xs font-semibold hover:bg-violet-300 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Pair
+                  </button>
+                </div>
+
+                {(form.content.matchingPairs ?? []).length === 0 ? (
+                  <p className="text-xs text-violet-500 italic text-center py-4">
+                    No matching pairs added yet. Add pairs and define the correct option for each.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {(form.content.matchingPairs ?? []).map((pair, idx) => (
+                      <div key={idx} className="flex items-center gap-3 bg-white rounded-xl border border-violet-200 p-3">
+                        <span className="w-8 h-8 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-bold shrink-0">
+                          {pair.id}
+                        </span>
+                        <input
+                          type="text"
+                          value={pair.item}
+                          onChange={(e) => updateMatchingPair(idx, "item", e.target.value)}
+                          className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-200"
+                          placeholder="Item name (e.g. Bayer, Oliver...)"
+                        />
+                        <select
+                          value={pair.correctMatch}
+                          onChange={(e) => updateMatchingPair(idx, "correctMatch", e.target.value)}
+                          className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-200 min-w-[100px]"
+                        >
+                          <option value="">Match...</option>
+                          {form.content.options.map((opt) => (
+                            <option key={opt.label} value={opt.label}>{opt.label}. {opt.text}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => removeMatchingPair(idx)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Multi-Select Correct Answers ── */}
+            {form.answerFormat === "multi_select" && form.content.options.length > 0 && (
+              <div className="bg-teal-50 rounded-2xl border border-teal-200 p-5 mb-4">
+                <h3 className="text-sm font-semibold text-teal-800 mb-2 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Mark Correct Options
+                </h3>
+                <p className="text-xs text-teal-600 mb-3">
+                  Click to toggle which options are correct. Students must select all correct ones.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {form.content.options.map((opt) => {
+                    const isCorrect = (form.content.multiSelectCorrect ?? []).includes(opt.label);
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => toggleMultiSelectCorrect(opt.label)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all ${
+                          isCorrect
+                            ? "border-teal-500 bg-teal-100 text-teal-800 shadow-sm"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          isCorrect ? "bg-teal-600 text-white" : "bg-gray-100"
+                        }`}>
+                          {isCorrect ? "✓" : opt.label}
+                        </span>
+                        <span className="text-sm font-medium">{opt.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {(form.content.multiSelectCorrect ?? []).length > 0 && (
+                  <p className="text-xs text-teal-600 mt-2">
+                    {(form.content.multiSelectCorrect ?? []).length} correct option{(form.content.multiSelectCorrect ?? []).length > 1 ? "s" : ""}: [{(form.content.multiSelectCorrect ?? []).join(", ")}]
+                  </p>
                 )}
               </div>
             )}

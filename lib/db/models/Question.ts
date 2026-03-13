@@ -20,6 +20,9 @@ export interface IQuestion extends Document {
     instructions?: string;
     options?: { label: string; text: string; isCorrect: boolean }[];
     blanks?: { id: number; correctAnswer: string }[];
+    matchingPairs?: { id: number; item: string; correctMatch: string }[];
+    multiSelectCorrect?: string[]; // correct option labels for multi-select, e.g. ["A","C","E"]
+    wordLimit?: string; // e.g. "NO MORE THAN THREE WORDS AND/OR A NUMBER"
   };
   rubric: {
     criteria: IRubricCriteria[];
@@ -28,7 +31,7 @@ export interface IQuestion extends Document {
   };
   expectedAnswer?: string;
   testCases?: { input: string; expectedOutput: string }[];
-  answerFormat?: "text" | "code" | "file" | "voice" | "mcq" | "fill_in_blanks";
+  answerFormat?: "text" | "code" | "file" | "voice" | "mcq" | "fill_in_blanks" | "matching" | "multi_select";
   tags: string[];
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -56,6 +59,9 @@ const QuestionSchema = new Schema<IQuestion>(
       instructions: String,
       options: [{ label: String, text: String, isCorrect: Boolean }],
       blanks: [{ id: Number, correctAnswer: String }],
+      matchingPairs: [{ id: Number, item: String, correctMatch: String }],
+      multiSelectCorrect: [String],
+      wordLimit: String,
     },
     rubric: {
       criteria: [{ name: String, weight: Number, description: String }],
@@ -64,7 +70,7 @@ const QuestionSchema = new Schema<IQuestion>(
     },
     expectedAnswer: String,
     testCases: [{ input: String, expectedOutput: String }],
-    answerFormat: { type: String, enum: ["text", "code", "file", "voice", "mcq", "fill_in_blanks"], default: "text" },
+    answerFormat: { type: String, enum: ["text", "code", "file", "voice", "mcq", "fill_in_blanks", "matching", "multi_select"], default: "text" },
     tags: [String],
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },

@@ -146,6 +146,92 @@ export async function POST(
         criteriaScores: details,
       };
     }
+    // Matching: deterministic check — each pair matched against options
+    else if (question.answerFormat === "matching" && question.content.matchingPairs?.length) {
+      const pairs = question.content.matchingPairs as { id: number; item: string; correctMatch: string }[];
+      const maxScore = question.rubric?.maxScore ?? 10;
+      const perPair = maxScore / pairs.length;
+      let earned = 0;
+      const details: { name: string; score: number; maxScore: number; comment: string }[] = [];
+
+      let studentMatches: Record<string, string> = {};
+      try { studentMatches = JSON.parse(data.answer || "{}"); } catch { studentMatches = {}; }
+
+      for (const pair of pairs) {
+        const studentVal = (studentMatches[String(pair.id)] || "").trim().toUpperCase();
+        const correct = pair.correctMatch.trim().toUpperCase();
+        const isMatch = studentVal === correct;
+        const pairScore = isMatch ? perPair : 0;
+        earned += pairScore;
+        details.push({
+          name: `${pair.item}`,
+          score: Math.round(pairScore * 100) / 100,
+          maxScore: Math.round(perPair * 100) / 100,
+          comment: isMatch ? "Correct match" : `Expected ${pair.correctMatch}, got ${studentVal || "(empty)"}`,
+        });
+      }
+
+      aiEval = {
+        score: Math.round(earned * 100) / 100,
+        maxScore,
+        feedback: earned === maxScore
+          ? "All matches correct!"
+          : `${details.filter((d) => d.score > 0).length}/${pairs.length} matches correct.`,
+        explanation: `Matching evaluation: ${details.filter((d) => d.score > 0).length} out of ${pairs.length} items matched correctly.`,
+        criteriaScores: details,
+      };
+    }
+    // Multi-select: deterministic check — correct set of option labels
+    else if (question.answerFormat === "multi_select" && question.content.multiSelectCorrect?.length) {
+      const correctLabels = (question.content.multiSelectCorrect as string[]).map((l: string) => l.toUpperCase()).sort();
+      const maxScore = question.rubric?.maxScore ?? 10;
+
+      let studentLabels: string[] = [];
+      try { studentLabels = JSON.parse(data.answer || "[]"); } catch { studentLabels = []; }
+      studentLabels = studentLabels.map((l: string) => l.toUpperCase()).sort();
+
+      // Partial scoring: points per correct selection, minus penalty for wrong selections
+      const perCorrect = maxScore / correctLabels.length;
+      let earned = 0;
+      const details: { name: string; score: number; maxScore: number; comment: string }[] = [];
+
+      for (const correct of correctLabels) {
+        const found = studentLabels.includes(correct);
+        const pts = found ? perCorrect : 0;
+        earned += pts;
+        details.push({
+          name: `Option ${correct}`,
+          score: Math.round(pts * 100) / 100,
+          maxScore: Math.round(perCorrect * 100) / 100,
+          comment: found ? "Correctly selected" : "Missed",
+        });
+      }
+
+      // Penalty for wrong selections
+      const wrongSelections = studentLabels.filter((l: string) => !correctLabels.includes(l));
+      for (const wrong of wrongSelections) {
+        const penalty = Math.min(perCorrect, earned);
+        earned = Math.max(0, earned - penalty);
+        details.push({
+          name: `Option ${wrong}`,
+          score: -Math.round(penalty * 100) / 100,
+          maxScore: 0,
+          comment: "Incorrect selection (penalty)",
+        });
+      }
+
+      earned = Math.max(0, Math.round(earned * 100) / 100);
+
+      aiEval = {
+        score: earned,
+        maxScore,
+        feedback: earned === maxScore
+          ? "All correct options selected!"
+          : `${correctLabels.filter((c: string) => studentLabels.includes(c)).length}/${correctLabels.length} correct selections.`,
+        explanation: `Multi-select: Expected [${correctLabels.join(", ")}], got [${studentLabels.join(", ")}].`,
+        criteriaScores: details,
+      };
+    }
     // All other types: evaluate with AI
     else {
       aiEval = await evaluateAnswer({

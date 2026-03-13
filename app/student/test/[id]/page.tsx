@@ -26,7 +26,16 @@ interface QuestionData {
   domain: string;
   type: string;
   difficulty: string;
-  content: { text: string; options?: any[]; blanks?: any[]; codeTemplate?: string };
+  content: {
+    text: string;
+    options?: any[];
+    blanks?: any[];
+    codeTemplate?: string;
+    audioUrl?: string;
+    matchingPairs?: any[];
+    multiSelectCorrect?: string[];
+    wordLimit?: string;
+  };
   answerFormat: string;
   rubric: { maxScore: number };
 }
@@ -40,16 +49,35 @@ function formatDuration(seconds: number) {
 function questionToPrompt(q: QuestionData, index: number, total: number): string {
   let prompt = `Question ${index + 1} of ${total} [${q.domain.toUpperCase()} - ${q.difficulty}]\n\n${q.content.text}`;
 
-  if (q.type === "mcq" && q.content.options?.length) {
-    prompt += "\n\n" + q.content.options.map((o: any) => `${o.label}) ${o.text}`).join("\n");
+  // Audio indicator
+  if (q.content.audioUrl) {
+    prompt += "\n\n🎧 Listen to the audio above, then answer below.";
+  }
+
+  // Options for MCQ, matching, multi-select
+  if (q.content.options?.length && (q.type === "mcq" || q.answerFormat === "matching" || q.answerFormat === "multi_select" || q.answerFormat === "mcq")) {
+    prompt += "\n\nOptions:\n" + q.content.options.map((o: any) => `${o.label}) ${o.text}`).join("\n");
   }
 
   if (q.type === "code" && q.content.codeTemplate) {
     prompt += `\n\nCode template:\n\`\`\`\n${q.content.codeTemplate}\n\`\`\``;
   }
 
-  if (q.content.blanks?.length) {
+  if (q.answerFormat === "fill_in_blanks" && q.content.blanks?.length) {
     prompt += `\n\n(Fill in ${q.content.blanks.length} blank${q.content.blanks.length > 1 ? "s" : ""})`;
+    if (q.content.wordLimit) prompt += `\nWrite ${q.content.wordLimit} for each answer.`;
+  }
+
+  if (q.answerFormat === "matching" && q.content.matchingPairs?.length) {
+    prompt += "\n\nMatch each item to the correct option:";
+    q.content.matchingPairs.forEach((p: any) => {
+      prompt += `\n${p.id}. ${p.item} → [Select A-F]`;
+    });
+  }
+
+  if (q.answerFormat === "multi_select") {
+    const count = q.content.multiSelectCorrect?.length ?? 2;
+    prompt += `\n\n(Choose ${count} correct option${count > 1 ? "s" : ""})`;
   }
 
   return prompt;
@@ -472,6 +500,21 @@ function TestContent({ testId }: { testId: string }) {
 
       {/* Main content */}
       <div className="flex-1 overflow-hidden max-w-4xl mx-auto w-full flex flex-col gap-0">
+        {/* Audio player for listening questions */}
+        {questions[currentIndex]?.content.audioUrl && (
+          <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Listening</span>
+              <audio
+                controls
+                controlsList="nodownload"
+                src={questions[currentIndex].content.audioUrl}
+                className="flex-1 h-10"
+              />
+            </div>
+          </div>
+        )}
+
         {/* AI Avatar + current question */}
         <div className="shrink-0 bg-white border-b border-gray-100 px-4 py-4">
           <div className="flex items-start gap-4">
