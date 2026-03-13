@@ -3,7 +3,6 @@ import { connectDB } from "./mongodb";
 import User from "./models/User";
 import Question from "./models/Question";
 import QuestionFolder from "./models/QuestionFolder";
-import { hashPassword } from "@/lib/auth/jwt";
 
 const SEED_QUESTIONS = [
   // ENGLISH
@@ -166,21 +165,17 @@ async function seed() {
   await QuestionFolder.deleteMany({});
   console.log("Cleared existing data");
 
-  // Create users
-  const adminPassword = await hashPassword("admin123");
-  const studentPassword = await hashPassword("student123");
-  const teacherPassword = await hashPassword("teacher123");
-
+  // Create seed users (Clerk handles real auth; these are placeholder DB records)
   const admin = await User.create({
-    name: "Admin User", email: "admin@test.com", password: adminPassword, role: "admin",
+    clerkId: "seed_admin_clerkid", name: "Admin User", email: "admin@test.com", role: "admin",
   });
   await User.create({
-    name: "Test Student", email: "student@test.com", password: studentPassword, role: "student",
+    clerkId: "seed_student_clerkid", name: "Test Student", email: "student@test.com", role: "student",
   });
   await User.create({
-    name: "Test Teacher", email: "teacher@test.com", password: teacherPassword, role: "teacher",
+    clerkId: "seed_teacher_clerkid", name: "Test Teacher", email: "teacher@test.com", role: "teacher",
   });
-  console.log("Created users: admin@test.com / admin123, student@test.com / student123, teacher@test.com / teacher123");
+  console.log("Created seed users: admin@test.com, student@test.com, teacher@test.com");
 
   // Create folders
   const folders: Record<string, any> = {};

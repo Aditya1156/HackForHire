@@ -1,5 +1,4 @@
 import { KaTeXRenderer } from "@/components/shared/KaTeXRenderer";
-import Image from "next/image";
 
 export interface QuestionData {
   _id: string;
