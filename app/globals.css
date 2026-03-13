@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2.5 px-5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-5 rounded-lg border border-gray-300 transition-all duration-200 shadow-sm;
+  }
+  .btn-accent {
+    @apply bg-accent hover:bg-accent-dark text-white font-medium py-2.5 px-5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+  .btn-sm {
+    @apply py-1.5 px-3 text-sm rounded-md;
+  }
+  .btn-lg {
+    @apply py-3 px-7 text-lg rounded-xl;
+  }
+  .card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+  }
+  .card-hover {
+    @apply card hover:shadow-md hover:border-gray-300 transition-all duration-200;
+  }
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors;
+  }
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-english { @apply bg-blue-100 text-blue-800; }
+  .badge-math { @apply bg-green-100 text-green-800; }
+  .badge-aptitude { @apply bg-purple-100 text-purple-800; }
+  .badge-coding { @apply bg-orange-100 text-orange-800; }
+  .badge-hr { @apply bg-pink-100 text-pink-800; }
+  .badge-easy { @apply bg-green-100 text-green-700; }
+  .badge-medium { @apply bg-yellow-100 text-yellow-700; }
+  .badge-hard { @apply bg-red-100 text-red-700; }
+  .page-header {
+    @apply text-2xl font-bold text-gray-900 mb-6;
+  }
+  .section-title {
+    @apply text-lg font-semibold text-gray-800 mb-4;
+  }
+}
