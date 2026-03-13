@@ -1,8 +1,8 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Question from "@/lib/db/models/Question";
 import QuestionFolder from "@/lib/db/models/QuestionFolder";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { updateFolderSchema } from "@/lib/utils/validation";
 import mongoose from "mongoose";
@@ -13,8 +13,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin", "teacher", "student"]);
-    if (authResult instanceof Response) return authResult as never;
+    const authResult = await requireAuth(["admin", "teacher", "student"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await context.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -35,9 +35,8 @@ export async function PUT(req: NextRequest, context: RouteContext) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    extractUser(authResult);
+    const authResult = await requireAuth(["admin"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await context.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -67,8 +66,8 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin"]);
-    if (authResult instanceof Response) return authResult as never;
+    const authResult = await requireAuth(["admin"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await context.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {

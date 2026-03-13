@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Test from "@/lib/db/models/Test";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { gradeOverrideSchema } from "@/lib/utils/validation";
 
@@ -12,14 +12,13 @@ export async function POST(
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["teacher", "admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    extractUser(authResult);
+    const authResult = await requireAuth(["teacher", "admin"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
 
     const bodyResult = await validateBody(req, gradeOverrideSchema);
-    if (bodyResult instanceof Response) return bodyResult as never;
+    if (bodyResult instanceof NextResponse) return bodyResult;
     const { questionIndex, criteriaScores, teacherNote } = bodyResult.data;
 
     const test = await Test.findById(id);

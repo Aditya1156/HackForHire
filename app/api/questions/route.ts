@@ -2,18 +2,19 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Question from "@/lib/db/models/Question";
 import QuestionFolder from "@/lib/db/models/QuestionFolder";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { createQuestionSchema } from "@/lib/utils/validation";
 import mongoose from "mongoose";
+import { NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin", "teacher"]);
-    if (authResult instanceof Response) return authResult as never;
-    const { user: _user } = authResult as { user: { userId: string; email: string; role: string } };
+    const authResult = await requireAuth(["admin", "teacher"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user: _user } = authResult;
 
     const { searchParams } = new URL(req.url);
     const folderId = searchParams.get("folderId");
@@ -55,9 +56,9 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["admin"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const validation = await validateBody(req, createQuestionSchema);
     if ("error" in validation) return validation as never;

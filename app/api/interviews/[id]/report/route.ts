@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Interview from "@/lib/db/models/Interview";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { successResponse, errorResponse } from "@/lib/utils/api-helpers";
 
 export async function GET(
@@ -11,9 +11,9 @@ export async function GET(
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["student", "teacher", "admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["student", "teacher", "admin"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const { id } = await params;
 

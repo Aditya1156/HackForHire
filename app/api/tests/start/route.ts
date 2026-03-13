@@ -1,9 +1,9 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Test from "@/lib/db/models/Test";
 import Question from "@/lib/db/models/Question";
 import QuestionFolder from "@/lib/db/models/QuestionFolder";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { startTestSchema } from "@/lib/utils/validation";
 import mongoose from "mongoose";
@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["student"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["student"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const validation = await validateBody(req, startTestSchema);
     if ("error" in validation) return validation as never;

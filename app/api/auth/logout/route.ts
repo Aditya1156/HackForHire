@@ -1,8 +1,9 @@
-import { NextRequest } from "next/server";
-import { clearAuthCookie } from "@/lib/auth/jwt";
-import { successResponse } from "@/lib/utils/api-helpers";
+import { NextResponse } from "next/server";
 
-export async function POST(_req: NextRequest) {
-  await clearAuthCookie();
-  return successResponse({ message: "Logged out successfully" });
+// Clerk handles authentication — this route is no longer used.
+export async function POST() {
+  return NextResponse.json(
+    { error: "This endpoint is deprecated. Authentication is handled by Clerk." },
+    { status: 404 }
+  );
 }

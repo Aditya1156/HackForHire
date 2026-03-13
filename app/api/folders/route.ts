@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import QuestionFolder from "@/lib/db/models/QuestionFolder";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { createFolderSchema } from "@/lib/utils/validation";
 import mongoose from "mongoose";
@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin", "teacher", "student"]);
-    if (authResult instanceof Response) return authResult as never;
+    const authResult = await requireAuth(["admin", "teacher", "student"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const folders = await QuestionFolder.find({})
       .sort({ createdAt: -1 })
@@ -28,9 +28,9 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["admin"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const validation = await validateBody(req, createFolderSchema);
     if ("error" in validation) return validation as never;

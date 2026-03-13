@@ -1,8 +1,8 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/mongodb";
 import User from "@/lib/db/models/User";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { parseResume } from "@/lib/ai/resume-parser";
 
@@ -15,12 +15,12 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["student", "teacher", "admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["student", "teacher", "admin"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const bodyResult = await validateBody(req, parseResumeSchema);
-    if (bodyResult instanceof Response) return bodyResult as never;
+    if (bodyResult instanceof NextResponse) return bodyResult;
     const { resumeText, save } = bodyResult.data;
 
     const parsed = await parseResume(resumeText);

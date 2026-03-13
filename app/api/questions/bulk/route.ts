@@ -1,8 +1,8 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Question from "@/lib/db/models/Question";
 import QuestionFolder from "@/lib/db/models/QuestionFolder";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { createQuestionSchema } from "@/lib/utils/validation";
 import { z } from "zod";
@@ -16,9 +16,9 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["admin"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     let body: unknown;
     try {

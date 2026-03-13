@@ -2,9 +2,9 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
+  clerkId: string;
   name: string;
   email: string;
-  password: string;
   role: "student" | "admin" | "teacher";
   resume?: {
     fileUrl: string;
@@ -22,9 +22,9 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>(
   {
+    clerkId: { type: String, required: true, unique: true },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true, select: false },
     role: { type: String, enum: ["student", "admin", "teacher"], default: "student" },
     resume: {
       fileUrl: String,
@@ -41,6 +41,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.index({ email: 1 });
+UserSchema.index({ clerkId: 1 });
 UserSchema.index({ role: 1 });
 
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);

@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Question from "@/lib/db/models/Question";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { rubricUpdateSchema } from "@/lib/utils/validation";
 
@@ -12,14 +12,13 @@ export async function PUT(
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["teacher", "admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    extractUser(authResult);
+    const authResult = await requireAuth(["teacher", "admin"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const { id } = await params;
 
     const bodyResult = await validateBody(req, rubricUpdateSchema);
-    if (bodyResult instanceof Response) return bodyResult as never;
+    if (bodyResult instanceof NextResponse) return bodyResult;
     const { criteria, maxScore } = bodyResult.data;
 
     const question = await Question.findById(id);

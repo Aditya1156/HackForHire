@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
 import { Brain } from "lucide-react";
@@ -21,10 +22,21 @@ interface AuthGuardProps {
 export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { isLoaded, isSignedIn } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for Clerk to finish loading
+    if (!isLoaded) return;
+
+    // Not signed in — redirect to Clerk sign-in
+    if (!isSignedIn) {
+      router.replace(`/sign-in?redirect_url=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    // Fetch MongoDB user profile (includes role)
     fetch("/api/auth/me")
       .then((res) => {
         if (!res.ok) throw new Error("Not authenticated");
@@ -41,14 +53,14 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
         }
       })
       .catch(() => {
-        router.replace(`/auth/login?from=${encodeURIComponent(pathname)}`);
+        router.replace(`/sign-in?redirect_url=${encodeURIComponent(pathname)}`);
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [router, pathname, requiredRole]);
+  }, [isLoaded, isSignedIn, router, pathname, requiredRole]);
 
-  if (isLoading) {
+  if (!isLoaded || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

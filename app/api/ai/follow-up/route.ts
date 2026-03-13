@@ -1,17 +1,16 @@
-import { NextRequest } from "next/server";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { followUpSchema } from "@/lib/utils/validation";
 import { generateFollowUp } from "@/lib/ai/follow-up";
 
 export async function POST(req: NextRequest) {
   try {
-    const authResult = await authenticateRequest(req, ["student", "teacher", "admin"]);
-    if (authResult instanceof Response) return authResult as never;
-    extractUser(authResult);
+    const authResult = await requireAuth(["student", "teacher", "admin"]);
+    if (authResult instanceof NextResponse) return authResult;
 
     const bodyResult = await validateBody(req, followUpSchema);
-    if (bodyResult instanceof Response) return bodyResult as never;
+    if (bodyResult instanceof NextResponse) return bodyResult;
     const { originalQuestion, studentAnswer, conversationHistory } = bodyResult.data;
 
     const followUpQuestion = await generateFollowUp(

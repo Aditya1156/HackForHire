@@ -1,25 +1,22 @@
-import { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { connectDB } from "@/lib/db/mongodb";
 import User from "@/lib/db/models/User";
-import { authenticateRequest } from "@/lib/auth/jwt";
 import { successResponse, errorResponse } from "@/lib/utils/api-helpers";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const authResult = await authenticateRequest(req);
-    if ("error" in authResult) return authResult as any;
-    const { user: payload } = authResult as { user: any };
+    const { userId: clerkId } = await auth();
+    if (!clerkId) return errorResponse("Not authenticated", 401);
 
     await connectDB();
-
-    const user = await User.findById(payload.userId).select("-password");
-    if (!user) {
-      return errorResponse("User not found", 404);
-    }
+    const user = await User.findOne({ clerkId });
+    if (!user) return errorResponse("User not found", 404);
 
     return successResponse({
       user: {
         id: user._id.toString(),
+        clerkId: user.clerkId,
         name: user.name,
         email: user.email,
         role: user.role,

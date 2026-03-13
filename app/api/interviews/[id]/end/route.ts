@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Interview from "@/lib/db/models/Interview";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { callAIForJSON } from "@/lib/ai/client";
 import { calculateAIRS, getAIRSBreakdown } from "@/lib/scoring/airs";
@@ -25,9 +25,9 @@ export async function POST(
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["student"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["student"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const { id } = await params;
 

@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import Interview from "@/lib/db/models/Interview";
-import { authenticateRequest, extractUser } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { startInterviewSchema } from "@/lib/utils/validation";
 import { parseResume } from "@/lib/ai/resume-parser";
@@ -12,12 +12,12 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const authResult = await authenticateRequest(req, ["student"]);
-    if (authResult instanceof Response) return authResult as never;
-    const user = extractUser(authResult);
+    const authResult = await requireAuth(["student"]);
+    if (authResult instanceof NextResponse) return authResult;
+    const { user } = authResult;
 
     const validation = await validateBody(req, startInterviewSchema);
-    if (validation instanceof Response) return validation as never;
+    if (validation instanceof NextResponse) return validation;
     const { data } = validation as { data: typeof startInterviewSchema._type };
 
     // Parse resume if provided
