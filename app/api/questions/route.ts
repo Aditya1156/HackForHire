@@ -5,6 +5,7 @@ import QuestionFolder from "@/lib/db/models/QuestionFolder";
 import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { createQuestionSchema } from "@/lib/utils/validation";
+import { getDefaultRubric } from "@/lib/ai/rubric-templates";
 import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
@@ -66,6 +67,15 @@ export async function POST(req: NextRequest) {
 
     const folder = await QuestionFolder.findById(data.folderId);
     if (!folder) return errorResponse("Folder not found", 404);
+
+    // Auto-generate rubric if criteria are empty
+    if (!data.rubric.criteria || data.rubric.criteria.length === 0) {
+      const template = getDefaultRubric(data.domain, data.type);
+      data.rubric.criteria = template.criteria;
+      if (!data.rubric.gradingLogic) {
+        data.rubric.gradingLogic = template.gradingLogic;
+      }
+    }
 
     const question = await Question.create({
       ...data,

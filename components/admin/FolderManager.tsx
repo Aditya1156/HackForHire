@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import BrandLoader from "@/components/ui/BrandLoader";
 import {
   FolderOpen,
   Plus,
@@ -11,13 +12,26 @@ import {
   AlertCircle,
   X,
   BookOpen,
-  Hash,
+  Tag,
+  Search,
+  GraduationCap,
+  Briefcase,
+  Code,
+  Building2,
+  Stethoscope,
+  Scale,
+  Palette,
+  ChevronDown,
+  CheckCircle2,
 } from "lucide-react";
 
 interface Folder {
   _id: string;
   name: string;
   domain: string;
+  description?: string;
+  tags: string[];
+  isPublished: boolean;
   questionCount: number;
   fetchCount: number;
   createdAt: string;
@@ -25,22 +39,80 @@ interface Folder {
 
 interface FolderFormData {
   name: string;
-  domain: string;
-  fetchCount: number;
+  tags: string[];
+  isPublished: boolean;
 }
 
-const DOMAINS = ["english", "math", "aptitude", "coding", "hr", "situational"] as const;
+const PREBUILT_TAGS: { category: string; icon: any; color: string; tags: string[] }[] = [
+  {
+    category: "B.Tech / B.E / Engineering",
+    icon: GraduationCap,
+    color: "text-blue-600 bg-blue-50",
+    tags: ["Software Developer", "SDE", "Frontend Developer", "Backend Developer", "Full Stack Developer", "Mobile Developer", "DevOps Engineer", "Cloud Architect", "Data Scientist", "Machine Learning Engineer", "AI Engineer", "Cybersecurity Analyst", "Embedded Systems Engineer", "System Design Engineer", "QA Engineer", "Data Engineer", "Blockchain Developer", "Product Manager (Tech)"],
+  },
+  {
+    category: "BCA / MCA / B.Sc IT / M.Sc IT",
+    icon: Code,
+    color: "text-orange-600 bg-orange-50",
+    tags: ["Software Developer", "SDE", "Full Stack Developer", "Frontend Developer", "Backend Developer", "Web Developer", "Mobile Developer", "QA Engineer", "Database Administrator", "IT Support Engineer", "System Administrator", "UI/UX Designer", "Python Developer", "Java Developer", "PHP Developer", "Data Analyst", "Cloud Engineer", "Technical Support"],
+  },
+  {
+    category: "M.Tech / M.E / Research",
+    icon: GraduationCap,
+    color: "text-indigo-600 bg-indigo-50",
+    tags: ["Machine Learning Engineer", "AI Engineer", "Data Scientist", "Research Scientist", "NLP Engineer", "Computer Vision Engineer", "Cloud Architect", "Cybersecurity Analyst", "Robotics Engineer", "VLSI Design Engineer", "System Design Engineer", "R&D Engineer", "Big Data Engineer"],
+  },
+  {
+    category: "MBA / BBA / PGDM",
+    icon: Briefcase,
+    color: "text-violet-600 bg-violet-50",
+    tags: ["Business Analyst", "Product Manager", "Marketing Manager", "HR Manager", "Finance Manager", "Operations Manager", "Consultant", "Strategy Analyst", "Brand Manager", "Supply Chain Manager", "Project Manager", "Investment Banker", "Sales Manager", "Business Development Manager", "Management Trainee"],
+  },
+  {
+    category: "B.Com / M.Com / CA / CMA",
+    icon: Building2,
+    color: "text-emerald-600 bg-emerald-50",
+    tags: ["Accountant", "Financial Analyst", "Tax Consultant", "Auditor", "Investment Banker", "Banking Officer", "Insurance Analyst", "Cost Analyst", "Budget Analyst", "Equity Research Analyst", "Payroll Specialist", "GST Consultant", "Risk Analyst"],
+  },
+  {
+    category: "BA / MA / Arts & Humanities",
+    icon: Palette,
+    color: "text-pink-600 bg-pink-50",
+    tags: ["Content Writer", "Journalist", "Public Relations Manager", "Social Media Manager", "Copywriter", "UX Researcher", "Policy Analyst", "HR Executive", "Communications Specialist", "Research Associate", "Creative Director", "Event Manager", "Corporate Trainer"],
+  },
+  {
+    category: "B.Sc / M.Sc / Science",
+    icon: Stethoscope,
+    color: "text-teal-600 bg-teal-50",
+    tags: ["Data Analyst", "Research Scientist", "Lab Technician", "Biotech Researcher", "Statistician", "Quality Analyst", "Environmental Scientist", "Clinical Research Associate", "Bioinformatics Analyst", "Science Writer", "Data Scientist"],
+  },
+  {
+    category: "Medical / Pharma / Nursing",
+    icon: Stethoscope,
+    color: "text-red-600 bg-red-50",
+    tags: ["Medical Officer", "Hospital Administrator", "Pharmaceutical Sales Rep", "Drug Safety Associate", "Medical Coder", "Healthcare IT Specialist", "Physiotherapist", "Clinical Research Associate", "Pharmacovigilance Officer", "Lab Technician", "Nursing Officer"],
+  },
+  {
+    category: "Law / LLB / LLM",
+    icon: Scale,
+    color: "text-gray-600 bg-gray-50",
+    tags: ["Corporate Lawyer", "Legal Advisor", "Compliance Officer", "IP Lawyer", "Cyber Law Specialist", "Tax Lawyer", "Legal Researcher", "Arbitration Specialist", "Judiciary Aspirant", "Contract Specialist"],
+  },
+  {
+    category: "Diploma / ITI / Polytechnic",
+    icon: GraduationCap,
+    color: "text-amber-600 bg-amber-50",
+    tags: ["Technical Support Engineer", "Network Engineer", "AutoCAD Operator", "CNC Operator", "Electrician", "Web Developer", "Data Entry Operator", "Desktop Support", "Hardware Engineer", "CCTV Technician", "Mobile Repair Technician"],
+  },
+  {
+    category: "General / Any Graduation",
+    icon: Briefcase,
+    color: "text-gray-600 bg-gray-100",
+    tags: ["Customer Success Manager", "Sales Executive", "Administrative Officer", "Operations Executive", "Digital Marketing Executive", "Content Creator", "Executive Assistant", "Relationship Manager", "Recruiter", "General Management Trainee"],
+  },
+];
 
-const DOMAIN_BADGE: Record<string, string> = {
-  english: "badge badge-english",
-  math: "badge badge-math",
-  aptitude: "badge badge-aptitude",
-  coding: "badge badge-coding",
-  hr: "badge badge-hr",
-  situational: "badge bg-gray-100 text-gray-700",
-};
-
-const defaultForm: FolderFormData = { name: "", domain: "english", fetchCount: 10 };
+const defaultForm: FolderFormData = { name: "", tags: [], isPublished: true };
 
 export default function FolderManager() {
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -53,6 +125,8 @@ export default function FolderManager() {
   const [formError, setFormError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const fetchFolders = useCallback(async () => {
     setIsLoading(true);
@@ -73,17 +147,50 @@ export default function FolderManager() {
     fetchFolders();
   }, [fetchFolders]);
 
+  const filteredPrebuiltTags = useMemo(() => {
+    if (!tagSearch.trim()) return PREBUILT_TAGS;
+    const q = tagSearch.toLowerCase();
+    return PREBUILT_TAGS.map((group) => ({
+      ...group,
+      tags: group.tags.filter((t) => t.toLowerCase().includes(q)),
+    })).filter((group) => group.tags.length > 0);
+  }, [tagSearch]);
+
+  function toggleCategory(category: string) {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
+
+  function toggleTag(tag: string) {
+    setForm((f) => ({
+      ...f,
+      tags: f.tags.includes(tag) ? f.tags.filter((t) => t !== tag) : [...f.tags, tag],
+    }));
+  }
+
   function openCreate() {
     setEditFolder(null);
     setForm(defaultForm);
     setFormError("");
+    setTagSearch("");
+    setExpandedCategories(new Set());
     setShowModal(true);
   }
 
   function openEdit(folder: Folder) {
     setEditFolder(folder);
-    setForm({ name: folder.name, domain: folder.domain, fetchCount: folder.fetchCount });
+    setForm({
+      name: folder.name,
+      tags: folder.tags || [],
+      isPublished: folder.isPublished,
+    });
     setFormError("");
+    setTagSearch("");
+    setExpandedCategories(new Set());
     setShowModal(true);
   }
 
@@ -95,8 +202,6 @@ export default function FolderManager() {
 
   function validateForm(): string | null {
     if (!form.name.trim()) return "Folder name is required.";
-    if (!form.domain) return "Domain is required.";
-    if (form.fetchCount < 1) return "Fetch count must be at least 1.";
     return null;
   }
 
@@ -150,7 +255,7 @@ export default function FolderManager() {
         <div>
           <h1 className="page-header mb-1">Question Folders</h1>
           <p className="text-sm text-gray-500">
-            Organise questions by domain and configure fetch settings.
+            Organise questions into folders and assign role/degree tags.
           </p>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
@@ -170,7 +275,7 @@ export default function FolderManager() {
       {/* Loading */}
       {isLoading ? (
         <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <BrandLoader fullPage={false} />
         </div>
       ) : folders.length === 0 ? (
         <div className="card p-16 text-center">
@@ -194,31 +299,29 @@ export default function FolderManager() {
                   <h3 className="font-semibold text-gray-900 truncate" title={folder.name}>
                     {folder.name}
                   </h3>
-                  <div className="mt-1.5">
-                    <span className={DOMAIN_BADGE[folder.domain] ?? "badge bg-gray-100 text-gray-700"}>
-                      {folder.domain}
-                    </span>
-                  </div>
+                  {folder.tags && folder.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {folder.tags.slice(0, 5).map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-0.5 text-[10px] bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded-md font-medium">
+                          <Tag className="w-2.5 h-2.5" />{tag}
+                        </span>
+                      ))}
+                      {folder.tags.length > 5 && (
+                        <span className="text-[10px] text-gray-400 font-medium">+{folder.tags.length - 5} more</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <FolderOpen className="w-8 h-8 text-primary-200 flex-shrink-0" />
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 text-gray-400 mb-1">
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span className="text-xs">Questions</span>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">{folder.questionCount}</p>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="flex items-center justify-center gap-1 text-gray-400 mb-1">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span className="text-xs">Questions</span>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 text-gray-400 mb-1">
-                    <Hash className="w-3.5 h-3.5" />
-                    <span className="text-xs">Fetch Count</span>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">{folder.fetchCount}</p>
-                </div>
+                <p className="text-2xl font-bold text-gray-900">{folder.questionCount}</p>
               </div>
 
               {/* Date */}
@@ -254,11 +357,12 @@ export default function FolderManager() {
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* ============ Create / Edit Modal ============ */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editFolder ? "Edit Folder" : "New Folder"}
               </h3>
@@ -270,7 +374,8 @@ export default function FolderManager() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            {/* Modal Body - Scrollable */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
               {formError && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
                   <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -278,6 +383,7 @@ export default function FolderManager() {
                 </div>
               )}
 
+              {/* Folder Name */}
               <div>
                 <label className="label">Folder Name *</label>
                 <input
@@ -290,40 +396,136 @@ export default function FolderManager() {
                 />
               </div>
 
+              {/* Selected Tags */}
               <div>
-                <label className="label">Domain *</label>
-                <select
-                  value={form.domain}
-                  onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
-                  className="input-field"
-                >
-                  {DOMAINS.map((d) => (
-                    <option key={d} value={d}>
-                      {d.charAt(0).toUpperCase() + d.slice(1)}
-                    </option>
-                  ))}
-                </select>
+                <label className="label flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-violet-500" />
+                  Job Role Tags
+                  {form.tags.length > 0 && (
+                    <span className="text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-bold">
+                      {form.tags.length}
+                    </span>
+                  )}
+                </label>
+                {form.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 p-3 bg-violet-50 border border-violet-100 rounded-xl">
+                    {form.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className="inline-flex items-center gap-1 bg-violet-600 text-white text-xs font-semibold px-2.5 py-1 rounded-lg hover:bg-violet-700 transition-colors"
+                      >
+                        {tag}
+                        <X className="w-3 h-3 opacity-70" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-center">
+                    <p className="text-xs text-gray-400">No roles selected. Pick from your degree group below.</p>
+                  </div>
+                )}
               </div>
 
+              {/* Search / Custom Tag */}
               <div>
-                <label className="label">Fetch Count *</label>
-                <input
-                  type="number"
-                  value={form.fetchCount}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, fetchCount: parseInt(e.target.value, 10) || 1 }))
-                  }
-                  className="input-field"
-                  min={1}
-                  step={1}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Number of questions randomly selected for a test from this folder.
-                </p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={tagSearch}
+                    onChange={(e) => setTagSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const val = tagSearch.trim();
+                        if (val && !form.tags.includes(val)) {
+                          toggleTag(val);
+                          setTagSearch("");
+                        }
+                      }
+                    }}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400"
+                    placeholder="Search job roles or type custom & press Enter..."
+                  />
+                </div>
+              </div>
+
+              {/* Prebuilt Tags by Category */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Browse by Category</p>
+                {filteredPrebuiltTags.map((group) => {
+                  const Icon = group.icon;
+                  const isExpanded = expandedCategories.has(group.category) || tagSearch.trim().length > 0;
+                  const visibleTags = isExpanded ? group.tags : group.tags.slice(0, 6);
+                  const hasMore = group.tags.length > 6 && !isExpanded;
+                  const selectedCount = group.tags.filter((t) => form.tags.includes(t)).length;
+
+                  return (
+                    <div key={group.category} className="border border-gray-100 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(group.category)}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${group.color}`}>
+                          <Icon className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 flex-1">{group.category}</span>
+                        {selectedCount > 0 && (
+                          <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-bold">
+                            {selectedCount} selected
+                          </span>
+                        )}
+                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                      <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                        {visibleTags.map((tag) => {
+                          const isSelected = form.tags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => toggleTag(tag)}
+                              className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all
+                                ${isSelected
+                                  ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                                  : "bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50"
+                                }`}
+                            >
+                              {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                              {tag}
+                            </button>
+                          );
+                        })}
+                        {hasMore && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCategory(group.category)}
+                            className="text-xs text-violet-600 font-semibold px-2 py-1.5 hover:underline"
+                          >
+                            +{group.tags.length - 6} more
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Info */}
+              <div className="flex items-start gap-2.5 bg-violet-50 border border-violet-100 rounded-xl p-4">
+                <CheckCircle2 className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-violet-800">Auto-matched to students</p>
+                  <p className="text-xs text-violet-600">Questions from this folder are automatically assigned to students whose selected role matches any of the tags above.</p>
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
               <button onClick={closeModal} disabled={isSaving} className="btn-secondary">
                 Cancel
               </button>

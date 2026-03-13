@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BrandLoader from "@/components/ui/BrandLoader";
 import {
   Loader2,
   AlertCircle,
@@ -219,13 +220,12 @@ export default function InterviewReportPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-950 via-navy to-primary-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-primary-400 animate-spin mx-auto mb-4" />
-          <p className="text-white font-semibold text-lg">Generating your AIRS Report...</p>
-          <p className="text-primary-300 text-sm mt-1">Analyzing your interview performance</p>
-        </div>
-      </div>
+      <BrandLoader
+        size="lg"
+        bg="bg-gradient-to-br from-primary-950 via-navy to-primary-900"
+        text="Generating your AIRS Report..."
+        subText="Analyzing your interview performance"
+      />
     );
   }
 

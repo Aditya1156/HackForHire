@@ -4,16 +4,31 @@ import { useState, useRef, useEffect } from "react";
 import { Mic, MicOff, Square, AlertCircle } from "lucide-react";
 import { CodeEditor, CodeLanguage } from "./CodeEditor";
 
+interface MCQOption {
+  label: string;
+  text: string;
+  isCorrect: boolean;
+}
+
+interface BlankDef {
+  id: number;
+}
+
 interface AnswerInputProps {
   questionType: string;
+  answerFormat?: string;
   value: string;
   codeValue?: string;
   codeLanguage?: CodeLanguage;
   voiceTranscript?: string;
+  mcqOptions?: MCQOption[];
+  blanks?: BlankDef[];
+  blanksAnswers?: Record<string, string>;
   onChange: (value: string) => void;
   onCodeChange?: (code: string) => void;
   onLanguageChange?: (lang: CodeLanguage) => void;
   onVoiceTranscript?: (transcript: string) => void;
+  onBlanksChange?: (answers: Record<string, string>) => void;
   onRunCode?: (code: string, language: CodeLanguage) => Promise<void>;
   codeTestResults?: { passed: number; total: number; results: any[] } | null;
   isRunningCode?: boolean;
@@ -139,14 +154,19 @@ function VoiceRecorder({
 
 export function AnswerInput({
   questionType,
+  answerFormat,
   value,
   codeValue = "",
   codeLanguage = "python",
   voiceTranscript = "",
+  mcqOptions,
+  blanks,
+  blanksAnswers = {},
   onChange,
   onCodeChange,
   onLanguageChange,
   onVoiceTranscript,
+  onBlanksChange,
   onRunCode,
   codeTestResults,
   isRunningCode,
@@ -161,6 +181,84 @@ export function AnswerInput({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [value]);
+
+  // Fill-in-the-blanks mode
+  if (answerFormat === "fill_in_blanks" && blanks && blanks.length > 0) {
+    const filledCount = Object.values(blanksAnswers).filter((v) => v.trim()).length;
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="label">Fill in the blanks</label>
+          <span className="text-xs text-gray-400">
+            {filledCount} / {blanks.length} answered
+          </span>
+        </div>
+        <div className="space-y-2">
+          {blanks.map((blank) => (
+            <div key={blank.id} className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                {blank.id}
+              </span>
+              <input
+                type="text"
+                value={blanksAnswers[String(blank.id)] || ""}
+                onChange={(e) => {
+                  const updated = { ...blanksAnswers, [String(blank.id)]: e.target.value };
+                  onBlanksChange?.(updated);
+                }}
+                disabled={disabled}
+                className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-sm font-medium
+                  focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100
+                  disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                placeholder={`Answer for blank #${blank.id}...`}
+                maxLength={100}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-400 italic">
+          Write no more than two words and/or a number for each answer.
+        </p>
+      </div>
+    );
+  }
+
+  if (questionType === "mcq" && mcqOptions && mcqOptions.length > 0) {
+    return (
+      <div className="space-y-2">
+        <label className="label">Select your answer</label>
+        <div className="space-y-2">
+          {mcqOptions.map((opt) => {
+            const isSelected = value === opt.label;
+            return (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => !disabled && onChange(opt.label)}
+                disabled={disabled}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left disabled:cursor-not-allowed
+                  ${isSelected
+                    ? "border-violet-500 bg-violet-50 shadow-sm"
+                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+              >
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 transition-all
+                  ${isSelected
+                    ? "bg-violet-600 text-white"
+                    : "bg-gray-100 text-gray-500"
+                  }`}>
+                  {opt.label}
+                </span>
+                <span className={`text-sm ${isSelected ? "text-violet-900 font-medium" : "text-gray-700"}`}>
+                  {opt.text}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   if (questionType === "code") {
     return (
@@ -223,7 +321,27 @@ export function AnswerInput({
     );
   }
 
-  // Default: text / hr / mixed / aptitude
+  if (questionType === "letter_writing") {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="label">Your Letter / Application</label>
+          <span className="text-xs text-gray-400">{value.length} chars</span>
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder="Write your letter or application here. Follow the format specified in the instructions above..."
+          className="input-field min-h-[280px] resize-none font-serif leading-relaxed"
+          rows={14}
+        />
+      </div>
+    );
+  }
+
+  // Default: text / hr / mixed / aptitude / image / audio
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">

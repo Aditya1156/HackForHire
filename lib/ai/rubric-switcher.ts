@@ -3,6 +3,8 @@ import { mathRubricPrompt } from "./rubrics/math";
 import { aptitudeRubricPrompt } from "./rubrics/aptitude";
 import { codingRubricPrompt } from "./rubrics/coding";
 import { hrRubricPrompt } from "./rubrics/hr";
+import { communicationRubricPrompt } from "./rubrics/communication";
+import { generalRubricPrompt } from "./rubrics/general";
 import { IRubricCriteria } from "@/lib/db/models/Question";
 
 const RUBRIC_MAP: Record<string, string> = {
@@ -12,6 +14,8 @@ const RUBRIC_MAP: Record<string, string> = {
   coding: codingRubricPrompt,
   hr: hrRubricPrompt,
   situational: hrRubricPrompt,
+  communication: communicationRubricPrompt,
+  general: generalRubricPrompt,
 };
 
 export function getSystemPrompt(domain: string, customRubric?: IRubricCriteria[]): string {
@@ -36,5 +40,7 @@ export function getDomainFromString(domain: string): string {
   if (normalized.includes("aptitude") || normalized.includes("logic") || normalized.includes("reasoning")) return "aptitude";
   if (normalized.includes("code") || normalized.includes("coding") || normalized.includes("programming")) return "coding";
   if (normalized.includes("hr") || normalized.includes("behavior") || normalized.includes("interview")) return "hr";
+  if (normalized.includes("communicat") || normalized.includes("speaking") || normalized.includes("presentation")) return "communication";
+  if (normalized.includes("general")) return "general";
   return "aptitude"; // safe fallback
 }

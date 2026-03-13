@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import BrandLoader from "@/components/ui/BrandLoader";
 import {
   ClipboardList,
   CheckCircle2,
@@ -222,9 +223,8 @@ export default function TeacherDashboardPage() {
         {/* Tests Table */}
         <div className="card overflow-hidden">
           {loading ? (
-            <div className="p-12 flex flex-col items-center gap-3 text-gray-500">
-              <RefreshCw size={32} className="animate-spin text-primary-500" />
-              <span>Loading tests…</span>
+            <div className="p-12 flex flex-col items-center gap-3">
+              <BrandLoader fullPage={false} text="Loading tests..." />
             </div>
           ) : tests.length === 0 ? (
             <div className="p-12 flex flex-col items-center gap-3 text-gray-500">

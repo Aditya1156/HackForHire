@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AuthGuard } from "@/components/layout/AuthGuard";
+import BrandLoader from "@/components/ui/BrandLoader";
 import {
   Users,
   BookOpen,
@@ -147,8 +148,8 @@ export default function AdminDashboardPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+          <div className="flex justify-center py-20">
+            <BrandLoader fullPage={false} text="Loading dashboard..." />
           </div>
         ) : error ? (
           <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
@@ -218,7 +219,7 @@ export default function AdminDashboardPage() {
                   iconColor: "text-green-600",
                 },
                 {
-                  href: "/teacher/review",
+                  href: "/teacher/dashboard",
                   icon: Award,
                   label: "Teacher Reviews",
                   desc: "Review student submissions",

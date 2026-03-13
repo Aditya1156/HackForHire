@@ -38,10 +38,10 @@ const LANGUAGES: { value: CodeLanguage; label: string; monacoId: string }[] = [
 ];
 
 const DEFAULT_CODE: Record<CodeLanguage, string> = {
-  python: "# Write your solution here\n\ndef solution():\n    pass\n",
-  javascript: "// Write your solution here\n\nfunction solution() {\n  \n}\n",
-  cpp: "#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n",
-  java: "public class Solution {\n    public static void main(String[] args) {\n        // Write your solution here\n    }\n}\n",
+  python: "# Write your function here\n\ndef solution(s):\n    # s is the input string from stdin\n    pass\n",
+  javascript: "// Write your function here\n\nfunction solution(s) {\n  // s is the input string from stdin\n  \n}\n",
+  cpp: "// Write your function here\n\nstring solution(string s) {\n    // s is the input string from stdin\n    return s;\n}\n",
+  java: "// Write your function here\n\nstatic String solution(String s) {\n    // s is the input string from stdin\n    return s;\n}\n",
 };
 
 export function CodeEditor({

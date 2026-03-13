@@ -88,17 +88,75 @@ export async function POST(
         ? data.voiceTranscript
         : data.answer;
 
-    // Evaluate with AI
-    const aiEval = await evaluateAnswer({
-      question: {
-        content: question.content,
-        domain: question.domain,
-        rubric: question.rubric,
-        expectedAnswer: question.expectedAnswer,
-      },
-      studentAnswer: answerForEval || "(no answer provided)",
-      codeExecutionResults,
-    });
+    let aiEval;
+
+    // MCQ: deterministic check against correct option — no AI needed
+    if (question.type === "mcq" && question.content.options?.length) {
+      const correctOption = question.content.options.find((o: any) => o.isCorrect);
+      const studentLabel = (data.answer || "").trim().toUpperCase();
+      const isCorrect = correctOption && correctOption.label.toUpperCase() === studentLabel;
+      const maxScore = question.rubric?.maxScore ?? 10;
+
+      aiEval = {
+        score: isCorrect ? maxScore : 0,
+        maxScore,
+        feedback: isCorrect
+          ? "Correct answer!"
+          : `Incorrect. The correct answer is ${correctOption?.label}: ${correctOption?.text}.`,
+        criteriaScores: [
+          {
+            name: "Correctness",
+            score: isCorrect ? maxScore : 0,
+            maxScore,
+            comment: isCorrect ? "Correct" : `Expected ${correctOption?.label}, got ${studentLabel || "no answer"}`,
+          },
+        ],
+      };
+    }
+    // Fill-in-blanks: deterministic proportional scoring
+    else if (question.answerFormat === "fill_in_blanks" && question.content.blanks?.length) {
+      const blanks = question.content.blanks as { id: number; correctAnswer: string }[];
+      const maxScore = question.rubric?.maxScore ?? 10;
+      const perBlank = maxScore / blanks.length;
+      let earned = 0;
+      const details: { name: string; score: number; maxScore: number; comment: string }[] = [];
+
+      for (const blank of blanks) {
+        const studentVal = (data.blanksAnswers?.[String(blank.id)] || "").trim().toLowerCase();
+        const correct = blank.correctAnswer.trim().toLowerCase();
+        const match = studentVal === correct;
+        const blankScore = match ? perBlank : 0;
+        earned += blankScore;
+        details.push({
+          name: `Blank #${blank.id}`,
+          score: Math.round(blankScore * 100) / 100,
+          maxScore: Math.round(perBlank * 100) / 100,
+          comment: match ? "Correct" : `Expected "${blank.correctAnswer}", got "${studentVal || "(empty)"}"`,
+        });
+      }
+
+      aiEval = {
+        score: Math.round(earned * 100) / 100,
+        maxScore,
+        feedback: earned === maxScore
+          ? "All blanks correct!"
+          : `${details.filter((d) => d.score > 0).length}/${blanks.length} blanks correct.`,
+        criteriaScores: details,
+      };
+    }
+    // All other types: evaluate with AI
+    else {
+      aiEval = await evaluateAnswer({
+        question: {
+          content: question.content,
+          domain: question.domain,
+          rubric: question.rubric,
+          expectedAnswer: question.expectedAnswer,
+        },
+        studentAnswer: answerForEval || "(no answer provided)",
+        codeExecutionResults,
+      });
+    }
 
     test.questions[qIndex].aiEvaluation = aiEval;
 

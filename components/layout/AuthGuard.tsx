@@ -4,8 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Navbar } from "./Navbar";
-import { Sidebar } from "./Sidebar";
-import { Sparkles } from "lucide-react";
+import BrandLoader from "@/components/ui/BrandLoader";
 
 interface User {
   id: string;
@@ -62,15 +61,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
 
   if (!isLoaded || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
-          <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto" />
-          <p className="text-gray-500 text-sm mt-4">Loading...</p>
-        </div>
-      </div>
+      <BrandLoader text="Loading..." />
     );
   }
 
@@ -81,15 +72,11 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar user={user} />
-      <div className="flex">
-        <Sidebar role={user.role} />
-        {/* Main content — offset by sidebar width on desktop */}
-        <main className="flex-1 lg:ml-60 min-h-[calc(100vh-64px)] transition-all duration-300">
-          <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto">
-            {children}
-          </div>
-        </main>
-      </div>
+      <main className="min-h-[calc(100vh-64px)]">
+        <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

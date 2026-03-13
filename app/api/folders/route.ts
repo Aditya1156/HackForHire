@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     const authResult = await requireAuth(["admin", "teacher", "student"]);
     if (authResult instanceof NextResponse) return authResult;
 
-    const folders = await QuestionFolder.find({})
+    // All roles see all folders (auto-matched by tags)
+    const folders = await QuestionFolder.find()
       .sort({ createdAt: -1 })
       .lean();
 

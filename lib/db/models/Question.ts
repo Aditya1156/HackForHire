@@ -9,14 +9,17 @@ export interface IRubricCriteria {
 export interface IQuestion extends Document {
   _id: mongoose.Types.ObjectId;
   folderId: mongoose.Types.ObjectId;
-  domain: "english" | "math" | "aptitude" | "coding" | "hr" | "situational";
-  type: "text" | "voice" | "code" | "mixed";
+  domain: "english" | "math" | "aptitude" | "coding" | "hr" | "situational" | "general" | "communication";
+  type: "text" | "voice" | "code" | "image" | "audio" | "letter_writing" | "mcq" | "mixed";
   difficulty: "easy" | "medium" | "hard";
   content: {
     text: string;
     formula?: string;
     imageUrl?: string;
     audioUrl?: string;
+    instructions?: string;
+    options?: { label: string; text: string; isCorrect: boolean }[];
+    blanks?: { id: number; correctAnswer: string }[];
   };
   rubric: {
     criteria: IRubricCriteria[];
@@ -25,6 +28,7 @@ export interface IQuestion extends Document {
   };
   expectedAnswer?: string;
   testCases?: { input: string; expectedOutput: string }[];
+  answerFormat?: "text" | "code" | "file" | "voice" | "mcq" | "fill_in_blanks";
   tags: string[];
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -35,16 +39,23 @@ const QuestionSchema = new Schema<IQuestion>(
     folderId: { type: Schema.Types.ObjectId, ref: "QuestionFolder", required: true },
     domain: {
       type: String,
-      enum: ["english", "math", "aptitude", "coding", "hr", "situational"],
+      enum: ["english", "math", "aptitude", "coding", "hr", "situational", "general", "communication"],
       required: true,
     },
-    type: { type: String, enum: ["text", "voice", "code", "mixed"], default: "text" },
+    type: {
+      type: String,
+      enum: ["text", "voice", "code", "image", "audio", "letter_writing", "mcq", "mixed"],
+      default: "text",
+    },
     difficulty: { type: String, enum: ["easy", "medium", "hard"], required: true },
     content: {
       text: { type: String, required: true },
       formula: String,
       imageUrl: String,
       audioUrl: String,
+      instructions: String,
+      options: [{ label: String, text: String, isCorrect: Boolean }],
+      blanks: [{ id: Number, correctAnswer: String }],
     },
     rubric: {
       criteria: [{ name: String, weight: Number, description: String }],
@@ -53,6 +64,7 @@ const QuestionSchema = new Schema<IQuestion>(
     },
     expectedAnswer: String,
     testCases: [{ input: String, expectedOutput: String }],
+    answerFormat: { type: String, enum: ["text", "code", "file", "voice", "mcq", "fill_in_blanks"], default: "text" },
     tags: [String],
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },

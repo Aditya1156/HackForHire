@@ -22,17 +22,28 @@ export const rubricCriteriaSchema = z.object({
 
 export const createQuestionSchema = z.object({
   folderId: z.string().min(1, "Folder ID is required"),
-  domain: z.enum(["english", "math", "aptitude", "coding", "hr", "situational"]),
-  type: z.enum(["text", "voice", "code", "mixed"]).default("text"),
+  domain: z.enum(["english", "math", "aptitude", "coding", "hr", "situational", "general", "communication"]),
+  type: z.enum(["text", "image", "audio", "voice", "code", "letter_writing", "mcq", "mixed"]).default("text"),
   difficulty: z.enum(["easy", "medium", "hard"]),
+  answerFormat: z.enum(["text", "code", "file", "voice", "mcq", "fill_in_blanks"]).optional(),
   content: z.object({
     text: z.string().min(1, "Question text is required"),
     formula: z.string().optional(),
     imageUrl: z.string().url().optional().or(z.literal("")),
     audioUrl: z.string().url().optional().or(z.literal("")),
+    instructions: z.string().optional(),
+    options: z.array(z.object({
+      label: z.string(),
+      text: z.string().min(1),
+      isCorrect: z.boolean(),
+    })).optional(),
+    blanks: z.array(z.object({
+      id: z.number().int().positive(),
+      correctAnswer: z.string().min(1),
+    })).optional(),
   }),
   rubric: z.object({
-    criteria: z.array(rubricCriteriaSchema).min(1),
+    criteria: z.array(rubricCriteriaSchema).default([]),
     maxScore: z.number().positive(),
     gradingLogic: z.string().default(""),
   }),
@@ -49,15 +60,20 @@ export const updateQuestionSchema = createQuestionSchema.partial();
 // --- Folders ---
 export const createFolderSchema = z.object({
   name: z.string().min(1, "Folder name is required").max(200),
-  domain: z.string().min(1),
-  fetchCount: z.number().int().positive().default(10),
+  domain: z.string().optional().default("general"),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional().default([]),
+  fetchCount: z.number().int().positive().optional().default(10),
+  isPublished: z.boolean().optional(),
 });
 
 export const updateFolderSchema = createFolderSchema.partial();
 
 // --- Tests ---
 export const startTestSchema = z.object({
-  folderId: z.string().min(1, "Folder ID is required"),
+  role: z.string().optional().default("general"),
+  folderId: z.string().optional(),
+  resumeText: z.string().optional(),
 });
 
 export const submitAnswerSchema = z.object({
@@ -68,6 +84,7 @@ export const submitAnswerSchema = z.object({
     code: z.string(),
     language: z.enum(["python", "javascript", "cpp", "java"]),
   }).optional(),
+  blanksAnswers: z.record(z.string(), z.string()).optional(),
 });
 
 // --- Interviews ---

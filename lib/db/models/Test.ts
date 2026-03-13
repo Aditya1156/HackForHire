@@ -33,10 +33,22 @@ export interface ITestQuestion {
   answeredAt: Date;
 }
 
+export interface IProctoring {
+  enabled: boolean;
+  violations: {
+    type: string;
+    timestamp: Date;
+    message: string;
+  }[];
+  warningCount: number;
+  recordingUrl?: string;
+}
+
 export interface ITest extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   mode: "test" | "interview";
+  role?: string;
   folderId?: mongoose.Types.ObjectId;
   domain?: string;
   questions: ITestQuestion[];
@@ -50,6 +62,7 @@ export interface ITest extends Document {
     weaknesses: string[];
     recommendations: string[];
   };
+  proctoring?: IProctoring;
   startedAt: Date;
   completedAt?: Date;
 }
@@ -58,6 +71,7 @@ const TestSchema = new Schema<ITest>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     mode: { type: String, enum: ["test", "interview"], default: "test" },
+    role: { type: String },
     folderId: { type: Schema.Types.ObjectId, ref: "QuestionFolder" },
     domain: String,
     questions: [
@@ -90,6 +104,12 @@ const TestSchema = new Schema<ITest>(
       strengths: [String],
       weaknesses: [String],
       recommendations: [String],
+    },
+    proctoring: {
+      enabled: { type: Boolean, default: false },
+      violations: [{ type: String, timestamp: Date, message: String }],
+      warningCount: { type: Number, default: 0 },
+      recordingUrl: String,
     },
     startedAt: { type: Date, default: Date.now },
     completedAt: Date,

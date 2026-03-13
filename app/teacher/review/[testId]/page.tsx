@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import BrandLoader from "@/components/ui/BrandLoader";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -348,12 +349,7 @@ export default function TeacherReviewPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-gray-500">
-          <RefreshCw size={36} className="animate-spin text-primary-500" />
-          <span>Loading test…</span>
-        </div>
-      </div>
+      <BrandLoader text="Loading test..." />
     );
   }
 
