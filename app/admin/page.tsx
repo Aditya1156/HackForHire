@@ -18,6 +18,7 @@ import {
   Loader2,
   AlertCircle,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import {
   BarChart,
@@ -202,6 +203,14 @@ export default function AdminDashboardPage() {
             {/* Quick Links */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
+                {
+                  href: "/admin/auto-generate",
+                  icon: Sparkles,
+                  label: "AI Auto-Generate",
+                  desc: "Upload PDF/Doc, AI creates test",
+                  color: "border-pink-200 hover:border-pink-300",
+                  iconColor: "text-pink-600",
+                },
                 {
                   href: "/admin/questions",
                   icon: BookOpen,

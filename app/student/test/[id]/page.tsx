@@ -239,11 +239,25 @@ function TestContent({ testId }: { testId: string }) {
     }
   }, [fullscreenExitCount, autoCancelling, finishProctoring, testId, router]);
 
-  const submitAnswer = useCallback(async () => {
-    const finalAnswer = codeMode ? codeValue : (voiceTranscript || answer);
-    if (!finalAnswer.trim() || isSubmitting) return;
+  // Blanks answers state for fill-in-the-blanks questions
+  const [blanksAnswers, setBlanksAnswers] = useState<Record<string, string>>({});
 
+  // Reset blanksAnswers when question changes
+  useEffect(() => {
+    setBlanksAnswers({});
+  }, [currentIndex]);
+
+  const submitAnswer = useCallback(async () => {
     const currentQ = questions[currentIndex];
+    // For structured formats, build the answer from the structured state
+    let finalAnswer = codeMode ? codeValue : (voiceTranscript || answer);
+
+    // Fill-in-blanks: serialize blanks answers as JSON
+    if (currentQ?.answerFormat === "fill_in_blanks" && Object.keys(blanksAnswers).length > 0) {
+      finalAnswer = JSON.stringify(blanksAnswers);
+    }
+    // Matching and multi-select: answer is already stored as JSON string in `answer`
+    if (!finalAnswer.trim() || isSubmitting) return;
     if (!currentQ) return;
 
     setIsSubmitting(true);
@@ -360,7 +374,7 @@ function TestContent({ testId }: { testId: string }) {
       setIsSubmitting(false);
       setIsThinking(false);
     }
-  }, [answer, voiceTranscript, codeValue, codeMode, codeLanguage, currentIndex, questions, testId, isSubmitting]);
+  }, [answer, voiceTranscript, codeValue, codeMode, codeLanguage, currentIndex, questions, testId, isSubmitting, blanksAnswers]);
 
   const handleFinishTest = async () => {
     if (isEnding) return;
@@ -565,104 +579,358 @@ function TestContent({ testId }: { testId: string }) {
 
         {/* Answer input area */}
         {!isComplete && (
-          <div className="shrink-0 bg-white border-t border-gray-200 px-4 py-4">
-            <div className="space-y-3">
-              {/* Voice controls */}
-              <VoiceControls
-                onTranscript={(t) => {
-                  setVoiceTranscript(t);
-                  if (textareaRef.current) textareaRef.current.value = t;
-                }}
-                disabled={isSubmitting || isThinking}
-              />
+          <StructuredAnswerArea
+            question={questions[currentIndex]}
+            answer={answer}
+            setAnswer={setAnswer}
+            blanksAnswers={blanksAnswers}
+            setBlanksAnswers={setBlanksAnswers}
+            voiceTranscript={voiceTranscript}
+            setVoiceTranscript={setVoiceTranscript}
+            codeMode={codeMode}
+            setCodeMode={setCodeMode}
+            codeValue={codeValue}
+            setCodeValue={setCodeValue}
+            codeLanguage={codeLanguage}
+            setCodeLanguage={setCodeLanguage}
+            isSubmitting={isSubmitting}
+            isThinking={isThinking}
+            submitAnswer={submitAnswer}
+            textareaRef={textareaRef}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
-              {/* Divider */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400 font-medium">or type your answer</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
+/** Structured answer area — shows MCQ buttons, blanks inputs, matching dropdowns, etc. */
+function StructuredAnswerArea({
+  question,
+  answer,
+  setAnswer,
+  blanksAnswers,
+  setBlanksAnswers,
+  voiceTranscript,
+  setVoiceTranscript,
+  codeMode,
+  setCodeMode,
+  codeValue,
+  setCodeValue,
+  codeLanguage,
+  setCodeLanguage,
+  isSubmitting,
+  isThinking,
+  submitAnswer,
+  textareaRef,
+}: {
+  question: QuestionData | undefined;
+  answer: string;
+  setAnswer: (v: string) => void;
+  blanksAnswers: Record<string, string>;
+  setBlanksAnswers: (v: Record<string, string>) => void;
+  voiceTranscript: string;
+  setVoiceTranscript: (v: string) => void;
+  codeMode: boolean;
+  setCodeMode: (v: boolean) => void;
+  codeValue: string;
+  setCodeValue: (v: string) => void;
+  codeLanguage: CodeLanguage;
+  setCodeLanguage: (v: CodeLanguage) => void;
+  isSubmitting: boolean;
+  isThinking: boolean;
+  submitAnswer: () => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  if (!question) return null;
 
-              {/* Code toggle for code questions */}
-              {questions[currentIndex]?.type === "code" && (
-                <div className="flex items-center gap-2">
+  const disabled = isSubmitting || isThinking;
+  const af = question.answerFormat;
+  const opts = question.content.options;
+  const blanks = question.content.blanks;
+  const pairs = question.content.matchingPairs;
+
+  // Determine if we need a structured input
+  const isStructured =
+    (af === "mcq" && opts?.length) ||
+    (af === "fill_in_blanks" && blanks?.length) ||
+    (af === "matching" && pairs?.length && opts?.length) ||
+    (af === "multi_select" && opts?.length);
+
+  // Check if submit is possible
+  const canSubmit = (() => {
+    if (disabled) return false;
+    if (af === "mcq") return !!answer;
+    if (af === "fill_in_blanks") return Object.values(blanksAnswers).some((v) => v.trim());
+    if (af === "matching") {
+      try { const m = JSON.parse(answer); return Object.values(m).some((v) => v); } catch { return false; }
+    }
+    if (af === "multi_select") {
+      try { const s = JSON.parse(answer); return Array.isArray(s) && s.length > 0; } catch { return false; }
+    }
+    if (codeMode) return !!codeValue.trim();
+    return !!(voiceTranscript || answer).trim();
+  })();
+
+  return (
+    <div className="shrink-0 bg-white border-t border-gray-200 px-4 py-4 max-h-[50vh] overflow-y-auto">
+      <div className="space-y-3">
+
+        {/* ===== MCQ: Radio buttons ===== */}
+        {af === "mcq" && opts && opts.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Select your answer</label>
+            <div className="space-y-2">
+              {opts.map((opt: any) => {
+                const isSelected = answer === opt.label;
+                return (
                   <button
-                    onClick={() => setCodeMode(!codeMode)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      codeMode
-                        ? "bg-primary-100 text-primary-700 border border-primary-300"
-                        : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
-                    }`}
+                    key={opt.label}
+                    type="button"
+                    onClick={() => !disabled && setAnswer(opt.label)}
+                    disabled={disabled}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left disabled:cursor-not-allowed
+                      ${isSelected
+                        ? "border-violet-500 bg-violet-50 shadow-sm"
+                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                      }`}
                   >
-                    <Code2 className="w-3.5 h-3.5" />
-                    {codeMode ? "Code Mode ON" : "Switch to Code"}
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-all
+                      ${isSelected ? "bg-violet-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                      {opt.label}
+                    </span>
+                    <span className={`text-sm ${isSelected ? "text-violet-900 font-medium" : "text-gray-700"}`}>
+                      {opt.text}
+                    </span>
                   </button>
-                  {codeMode && (
-                    <select
-                      value={codeLanguage}
-                      onChange={(e) => setCodeLanguage(e.target.value as CodeLanguage)}
-                      className="text-xs bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5"
-                    >
-                      <option value="python">Python</option>
-                      <option value="javascript">JavaScript</option>
-                      <option value="java">Java</option>
-                      <option value="cpp">C++</option>
-                      <option value="c">C</option>
-                    </select>
-                  )}
-                </div>
-              )}
-
-              {/* Text/Code input */}
-              <div className="flex gap-2">
-                <textarea
-                  ref={textareaRef}
-                  value={codeMode ? codeValue : (voiceTranscript || answer)}
-                  onChange={(e) => {
-                    if (codeMode) {
-                      setCodeValue(e.target.value);
-                    } else if (voiceTranscript) {
-                      setVoiceTranscript(e.target.value);
-                    } else {
-                      setAnswer(e.target.value);
-                    }
-                  }}
-                  disabled={isSubmitting || isThinking}
-                  placeholder={codeMode ? "Write your code here..." : "Type your answer here... Be detailed and specific."}
-                  rows={codeMode ? 8 : 3}
-                  className={`flex-1 input-field resize-none text-sm disabled:opacity-50 ${
-                    codeMode ? "font-mono text-xs" : ""
-                  }`}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !codeMode) {
-                      e.preventDefault();
-                      submitAnswer();
-                    }
-                  }}
-                />
-                <button
-                  onClick={submitAnswer}
-                  disabled={
-                    isSubmitting ||
-                    isThinking ||
-                    (codeMode ? !codeValue.trim() : !(voiceTranscript || answer).trim())
-                  }
-                  className="btn-primary px-4 self-end flex items-center gap-2 disabled:opacity-40"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  <span className="hidden sm:inline">Submit</span>
-                </button>
-              </div>
-              <p className="text-xs text-gray-400">
-                {codeMode ? "Write your solution, then click Submit" : "Ctrl+Enter to submit"}
-              </p>
+                );
+              })}
             </div>
           </div>
         )}
+
+        {/* ===== Fill-in-the-blanks: Input fields ===== */}
+        {af === "fill_in_blanks" && blanks && blanks.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Fill in the blanks</label>
+              <span className="text-xs text-gray-400">
+                {Object.values(blanksAnswers).filter((v) => v.trim()).length} / {blanks.length} answered
+              </span>
+            </div>
+            {question.content.wordLimit && (
+              <p className="text-xs text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg font-medium">
+                Write {question.content.wordLimit} for each answer.
+              </p>
+            )}
+            <div className="space-y-2">
+              {blanks.map((blank: any) => (
+                <div key={blank.id} className="flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center text-sm font-bold shrink-0">
+                    {blank.id}
+                  </span>
+                  <input
+                    type="text"
+                    value={blanksAnswers[String(blank.id)] || ""}
+                    onChange={(e) => {
+                      setBlanksAnswers({ ...blanksAnswers, [String(blank.id)]: e.target.value });
+                    }}
+                    disabled={disabled}
+                    className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-sm font-medium
+                      focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100
+                      disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    placeholder={`Answer for #${blank.id}...`}
+                    maxLength={100}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== Matching: Dropdowns ===== */}
+        {af === "matching" && pairs && pairs.length > 0 && opts && opts.length > 0 && (() => {
+          let matchAnswers: Record<string, string> = {};
+          try { matchAnswers = answer ? JSON.parse(answer) : {}; } catch { matchAnswers = {}; }
+
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Match each item</label>
+                <span className="text-xs text-gray-400">
+                  {Object.values(matchAnswers).filter((v) => v).length} / {pairs.length} matched
+                </span>
+              </div>
+              <div className="space-y-2">
+                {pairs.map((pair: any) => (
+                  <div key={pair.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-3">
+                    <span className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-sm font-bold shrink-0">
+                      {pair.id}
+                    </span>
+                    <span className="flex-1 text-sm font-medium text-gray-800">{pair.item}</span>
+                    <select
+                      value={matchAnswers[String(pair.id)] || ""}
+                      onChange={(e) => {
+                        const updated = { ...matchAnswers, [String(pair.id)]: e.target.value };
+                        setAnswer(JSON.stringify(updated));
+                      }}
+                      disabled={disabled}
+                      className="px-3 py-2 rounded-lg border-2 border-gray-200 bg-white text-sm font-medium
+                        focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100
+                        disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[140px]"
+                    >
+                      <option value="">Select...</option>
+                      {opts.map((opt: any) => (
+                        <option key={opt.label} value={opt.label}>
+                          {opt.label}. {opt.text}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ===== Multi-select: Checkboxes ===== */}
+        {af === "multi_select" && opts && opts.length > 0 && (() => {
+          let selected: string[] = [];
+          try { selected = answer ? JSON.parse(answer) : []; } catch { selected = []; }
+          const expectedCount = question.content.multiSelectCorrect?.length ?? 2;
+
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Select {expectedCount} answer{expectedCount > 1 ? "s" : ""}
+                </label>
+                <span className="text-xs text-gray-400">{selected.length} / {expectedCount} selected</span>
+              </div>
+              <div className="space-y-2">
+                {opts.map((opt: any) => {
+                  const isSelected = selected.includes(opt.label);
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => {
+                        if (disabled) return;
+                        const updated = isSelected
+                          ? selected.filter((l: string) => l !== opt.label)
+                          : [...selected, opt.label];
+                        setAnswer(JSON.stringify(updated));
+                      }}
+                      disabled={disabled}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left disabled:cursor-not-allowed
+                        ${isSelected
+                          ? "border-teal-500 bg-teal-50 shadow-sm"
+                          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                    >
+                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 transition-all
+                        ${isSelected ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                        {isSelected ? "✓" : opt.label}
+                      </span>
+                      <span className={`text-sm ${isSelected ? "text-teal-900 font-medium" : "text-gray-700"}`}>
+                        {opt.text}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ===== Default: Voice + Text/Code input ===== */}
+        {!isStructured && (
+          <>
+            <VoiceControls
+              onTranscript={(t) => {
+                setVoiceTranscript(t);
+                if (textareaRef.current) textareaRef.current.value = t;
+              }}
+              disabled={disabled}
+            />
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-gray-400 font-medium">or type your answer</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            {question.type === "code" && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCodeMode(!codeMode)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    codeMode
+                      ? "bg-primary-100 text-primary-700 border border-primary-300"
+                      : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+                  }`}
+                >
+                  <Code2 className="w-3.5 h-3.5" />
+                  {codeMode ? "Code Mode ON" : "Switch to Code"}
+                </button>
+                {codeMode && (
+                  <select
+                    value={codeLanguage}
+                    onChange={(e) => setCodeLanguage(e.target.value as CodeLanguage)}
+                    className="text-xs bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5"
+                  >
+                    <option value="python">Python</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="java">Java</option>
+                    <option value="cpp">C++</option>
+                    <option value="c">C</option>
+                  </select>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <textarea
+                ref={textareaRef}
+                value={codeMode ? codeValue : (voiceTranscript || answer)}
+                onChange={(e) => {
+                  if (codeMode) setCodeValue(e.target.value);
+                  else if (voiceTranscript) setVoiceTranscript(e.target.value);
+                  else setAnswer(e.target.value);
+                }}
+                disabled={disabled}
+                placeholder={codeMode ? "Write your code here..." : "Type your answer here... Be detailed and specific."}
+                rows={codeMode ? 8 : 3}
+                className={`flex-1 input-field resize-none text-sm disabled:opacity-50 ${codeMode ? "font-mono text-xs" : ""}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !codeMode) {
+                    e.preventDefault();
+                    submitAnswer();
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Submit button */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-400">
+            {isStructured ? "Select your answer, then submit" : codeMode ? "Write your solution, then submit" : "Ctrl+Enter to submit"}
+          </p>
+          <button
+            onClick={submitAnswer}
+            disabled={!canSubmit}
+            className="btn-primary px-5 py-2.5 flex items-center gap-2 disabled:opacity-40"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            Submit Answer
+          </button>
+        </div>
       </div>
     </div>
   );
