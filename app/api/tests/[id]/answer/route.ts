@@ -103,6 +103,7 @@ export async function POST(
         feedback: isCorrect
           ? "Correct answer!"
           : `Incorrect. The correct answer is ${correctOption?.label}: ${correctOption?.text}.`,
+        explanation: isCorrect ? "Student selected the correct option." : `Student selected ${studentLabel || "nothing"}, but the correct answer was ${correctOption?.label}.`,
         criteriaScores: [
           {
             name: "Correctness",
@@ -141,6 +142,7 @@ export async function POST(
         feedback: earned === maxScore
           ? "All blanks correct!"
           : `${details.filter((d) => d.score > 0).length}/${blanks.length} blanks correct.`,
+        explanation: `Fill-in-blanks evaluation: ${details.filter((d) => d.score > 0).length} out of ${blanks.length} blanks answered correctly.`,
         criteriaScores: details,
       };
     }
