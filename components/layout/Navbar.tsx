@@ -34,8 +34,8 @@ const NAV_ITEMS: Record<Role, { href: string; icon: any; label: string }[]> = {
     { href: "/student/interview", icon: Video, label: "Interview" },
   ],
   admin: [
-    { href: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { href: "/admin/questions", icon: BookOpen, label: "Questions" },
+    { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
+    { href: "/admin/questions", icon: BookOpen, label: "Question Bank" },
     { href: "/admin/folders", icon: FolderOpen, label: "Folders" },
     { href: "/admin/users", icon: Users, label: "Users" },
   ],
@@ -74,7 +74,9 @@ export function Navbar({ user }: NavbarProps) {
           {/* Desktop Nav Links */}
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const isActive = item.href === "/admin"
+                ? pathname === "/admin" || pathname === "/admin/dashboard"
+                : pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}
@@ -120,7 +122,9 @@ export function Navbar({ user }: NavbarProps) {
         <div className="md:hidden border-t border-gray-100 bg-white shadow-lg">
           <div className="px-4 py-3 space-y-1">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const isActive = item.href === "/admin"
+                ? pathname === "/admin" || pathname === "/admin/dashboard"
+                : pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}
