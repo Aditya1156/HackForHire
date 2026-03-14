@@ -1,5 +1,5 @@
 /**
- * Convert external audio URLs to playable URLs.
+ * Convert external URLs (audio/images) to usable URLs.
  * Google Drive links are routed through /api/proxy/audio to bypass CORS and hotlink blocks.
  * Local/S3 URLs are returned as-is.
  */

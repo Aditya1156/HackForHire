@@ -13,7 +13,6 @@ import {
   Lock,
   Send,
   Clock,
-  Code2,
   ChevronLeft,
   ChevronRight,
   BookOpen,
@@ -26,7 +25,7 @@ import {
 import { QuestionCard } from "@/components/test/QuestionCard";
 import { VoiceControls } from "@/components/interview/VoiceControls";
 import { ProctorProvider, useProctor } from "@/components/test/ProctorProvider";
-import { CodeEditor, CodeLanguage } from "@/components/test/CodeEditor";
+import type { CodeLanguage } from "@/components/test/CodeEditor";
 
 interface MCQOption {
   label: string;
@@ -182,11 +181,7 @@ function TestContent({ testId }: { testId: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
-  const [codeMode, setCodeMode] = useState(false);
-  const [codeValue, setCodeValue] = useState("");
   const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>("python");
-  const [codeTestResults, setCodeTestResults] = useState<{ passed: number; total: number; results: { input: string; expected: string; actual: string; passed: boolean; time?: string; memory?: string; error?: string }[] } | null>(null);
-  const [isRunningCode, setIsRunningCode] = useState(false);
   const [blanksAnswers, setBlanksAnswers] = useState<Record<string, string>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -224,7 +219,6 @@ function TestContent({ testId }: { testId: string }) {
           };
         });
         setQuestions(qs);
-        if (qs.length > 0 && qs[0].type === "code") setCodeMode(true);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -248,14 +242,9 @@ function TestContent({ testId }: { testId: string }) {
   useEffect(() => {
     setAnswer("");
     setVoiceTranscript("");
-    setCodeValue("");
-    setCodeTestResults(null);
-    setIsRunningCode(false);
     setBlanksAnswers({});
     setShowingResult(false);
     setLastResult(null);
-    const q = questions[currentIndex];
-    setCodeMode(q?.type === "code");
   }, [currentIndex, questions]);
 
   const answeredCount = Object.keys(answeredMap).length;
@@ -266,7 +255,8 @@ function TestContent({ testId }: { testId: string }) {
     const currentQ = questions[currentIndex];
     if (!currentQ || isSubmitting) return;
 
-    let finalAnswer = codeMode ? codeValue : (voiceTranscript || answer);
+    const isCodeQuestion = currentQ.type === "code" || currentQ.answerFormat === "code";
+    let finalAnswer = voiceTranscript || answer;
     if (currentQ.answerFormat === "fill_in_blanks" && Object.keys(blanksAnswers).length > 0) {
       finalAnswer = JSON.stringify(blanksAnswers);
     }
@@ -283,8 +273,8 @@ function TestContent({ testId }: { testId: string }) {
         body.blanksAnswers = blanksAnswers;
       }
       if (voiceTranscript) body.voiceTranscript = voiceTranscript;
-      if (codeMode) {
-        body.codeSubmission = { code: codeValue, language: codeLanguage };
+      if (isCodeQuestion) {
+        body.codeSubmission = { code: finalAnswer, language: codeLanguage };
       }
 
       const res = await fetch(`/api/tests/${testId}/answer`, {
@@ -317,29 +307,7 @@ function TestContent({ testId }: { testId: string }) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [answer, voiceTranscript, codeValue, codeMode, codeLanguage, currentIndex, questions, testId, isSubmitting, blanksAnswers, answeredMap]);
-
-  const runCode = useCallback(async (code: string, language: CodeLanguage) => {
-    const currentQ = questions[currentIndex];
-    if (!currentQ || isRunningCode) return;
-    setIsRunningCode(true);
-    setCodeTestResults(null);
-    try {
-      const res = await fetch("/api/code/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, questionId: currentQ._id, testId }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Run failed");
-      setCodeTestResults(data.data);
-    } catch (err) {
-      console.error("Code run error:", err);
-      setCodeTestResults({ passed: 0, total: 0, results: [{ input: "", expected: "", actual: "", passed: false, error: String(err) }] });
-    } finally {
-      setIsRunningCode(false);
-    }
-  }, [currentIndex, questions, testId, isRunningCode]);
+  }, [answer, voiceTranscript, codeLanguage, currentIndex, questions, testId, isSubmitting, blanksAnswers, answeredMap]);
 
   const goToQuestion = (idx: number) => {
     if (idx >= 0 && idx < questions.length) {
@@ -689,20 +657,12 @@ function TestContent({ testId }: { testId: string }) {
                 setBlanksAnswers={setBlanksAnswers}
                 voiceTranscript={voiceTranscript}
                 setVoiceTranscript={setVoiceTranscript}
-                codeMode={codeMode}
-                setCodeMode={setCodeMode}
-                codeValue={codeValue}
-                setCodeValue={setCodeValue}
                 codeLanguage={codeLanguage}
                 setCodeLanguage={setCodeLanguage}
                 isSubmitting={isSubmitting}
                 submitAnswer={submitAnswer}
                 textareaRef={textareaRef}
                 isAnswered={isCurrentAnswered}
-                runCode={runCode}
-                codeTestResults={codeTestResults}
-                isRunningCode={isRunningCode}
-                testId={testId}
               />
             )}
 
@@ -766,10 +726,6 @@ function StructuredAnswerArea({
   setBlanksAnswers,
   voiceTranscript,
   setVoiceTranscript,
-  codeMode,
-  setCodeMode,
-  codeValue,
-  setCodeValue,
   codeLanguage,
   setCodeLanguage,
   isSubmitting,
@@ -784,20 +740,12 @@ function StructuredAnswerArea({
   setBlanksAnswers: (v: Record<string, string>) => void;
   voiceTranscript: string;
   setVoiceTranscript: (v: string) => void;
-  codeMode: boolean;
-  setCodeMode: (v: boolean) => void;
-  codeValue: string;
-  setCodeValue: (v: string) => void;
   codeLanguage: CodeLanguage;
   setCodeLanguage: (v: CodeLanguage) => void;
   isSubmitting: boolean;
   submitAnswer: () => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   isAnswered: boolean;
-  runCode: (code: string, language: CodeLanguage) => Promise<void>;
-  codeTestResults: { passed: number; total: number; results: { input: string; expected: string; actual: string; passed: boolean; time?: string; memory?: string; error?: string }[] } | null;
-  isRunningCode: boolean;
-  testId: string;
 }) {
   if (isAnswered) return null;
 
@@ -823,7 +771,6 @@ function StructuredAnswerArea({
     if (af === "multi_select") {
       try { const s = JSON.parse(answer); return Array.isArray(s) && s.length > 0; } catch { return false; }
     }
-    if (codeMode) return !!codeValue.trim();
     return !!(voiceTranscript || answer).trim();
   })();
 
@@ -959,22 +906,11 @@ function StructuredAnswerArea({
         );
       })()}
 
-      {/* Text/Voice/Code */}
+      {/* Text/Voice/Code answer */}
       {!isStructured && (
         <>
-          {/* Coding questions: full Monaco editor with Run button */}
-          {(question.type === "code" || question.answerFormat === "code") ? (
-            <CodeEditor
-              value={codeValue}
-              language={codeLanguage}
-              onChange={setCodeValue}
-              onLanguageChange={setCodeLanguage}
-              onRun={runCode}
-              testResults={codeTestResults}
-              isRunning={isRunningCode}
-              readOnly={disabled}
-            />
-          ) : (
+          {/* Voice only for non-coding questions */}
+          {question.type !== "code" && question.answerFormat !== "code" && (
             <>
               <VoiceControls
                 onTranscript={(t) => {
@@ -989,34 +925,56 @@ function StructuredAnswerArea({
                 <span className="text-xs text-gray-400 font-medium">or type your answer</span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
-
-              <textarea
-                ref={textareaRef}
-                value={voiceTranscript || answer}
-                onChange={(e) => {
-                  if (voiceTranscript) setVoiceTranscript(e.target.value);
-                  else setAnswer(e.target.value);
-                }}
-                disabled={disabled}
-                placeholder="Type your answer here... Be detailed and specific."
-                rows={4}
-                className="w-full input-field resize-none text-sm disabled:opacity-50"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    submitAnswer();
-                  }
-                }}
-              />
             </>
           )}
+
+          {/* Language selector for coding questions */}
+          {(question.type === "code" || question.answerFormat === "code") && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500">Language:</span>
+              <select
+                value={codeLanguage}
+                onChange={(e) => setCodeLanguage(e.target.value as CodeLanguage)}
+                disabled={disabled}
+                className="text-xs bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 font-medium text-gray-700"
+              >
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="java">Java</option>
+                <option value="cpp">C++</option>
+              </select>
+            </div>
+          )}
+
+          <textarea
+            ref={textareaRef}
+            value={voiceTranscript || answer}
+            onChange={(e) => {
+              if (voiceTranscript) setVoiceTranscript(e.target.value);
+              else setAnswer(e.target.value);
+            }}
+            disabled={disabled}
+            placeholder={question.type === "code" || question.answerFormat === "code"
+              ? "Write your code here..."
+              : "Type your answer here... Be detailed and specific."}
+            rows={question.type === "code" || question.answerFormat === "code" ? 12 : 6}
+            className={`w-full input-field resize-none text-sm disabled:opacity-50 ${
+              question.type === "code" || question.answerFormat === "code" ? "font-mono text-xs leading-relaxed bg-gray-900 text-green-400 rounded-xl p-4 border-gray-700" : ""
+            }`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submitAnswer();
+              }
+            }}
+          />
         </>
       )}
 
       {/* Submit */}
       <div className="flex items-center justify-between pt-2">
         <p className="text-xs text-gray-400">
-          {isStructured ? "Select your answer, then submit" : codeMode ? "Run to test, then Submit when ready" : "Ctrl+Enter to submit"}
+          {isStructured ? "Select your answer, then submit" : "Ctrl+Enter to submit"}
         </p>
         <button
           onClick={submitAnswer}

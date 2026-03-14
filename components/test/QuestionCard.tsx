@@ -97,7 +97,7 @@ export const QuestionCard = memo(function QuestionCard({ question, index, total 
       {question.content.imageUrl && (
         <div className="mt-4 rounded-lg overflow-hidden border border-gray-200">
           <img
-            src={question.content.imageUrl}
+            src={toDirectUrl(question.content.imageUrl)}
             alt="Question illustration"
             className="w-full max-h-64 object-contain bg-white"
             loading="lazy"

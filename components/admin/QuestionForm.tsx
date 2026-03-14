@@ -682,12 +682,13 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
               </div>
             )}
 
-            {/* ── Image Upload / URL ── */}
-            {(form.type === "image" || form.type === "mixed") && (
+            {/* ── Image Upload / URL (available for text, image, mcq, code, mixed) ── */}
+            {(form.type !== "audio" && form.type !== "voice") && (
               <div className="bg-green-50 rounded-2xl border border-green-200 p-5 mb-4">
                 <label className="block text-sm font-semibold text-green-800 mb-1">
                   <ImageIcon className="w-4 h-4 inline mr-1" />
-                  Image <span className="text-red-500">*</span>
+                  Image {form.type === "image" && <span className="text-red-500">*</span>}
+                  {form.type !== "image" && <span className="text-xs font-normal text-green-500 ml-1">(optional)</span>}
                 </label>
 
                 {/* Drag & Drop Zone */}

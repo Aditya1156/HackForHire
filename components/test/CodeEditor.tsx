@@ -1,11 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Component, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { Play, Copy, Check, ChevronDown } from "lucide-react";
 
 // Lazy-load Monaco to avoid SSR issues
-const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[300px] bg-gray-900 flex items-center justify-center text-gray-400 text-sm">
+      Loading editor...
+    </div>
+  ),
+});
+
+// Error boundary to catch Monaco crashes on mount/unmount
+class EditorErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err: Error) { console.error("Monaco error:", err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-[300px] bg-gray-900 flex items-center justify-center text-gray-400 text-sm">
+          <button onClick={() => this.setState({ hasError: false })} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors">
+            Editor crashed — click to reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export type CodeLanguage = "python" | "javascript" | "cpp" | "java";
 
@@ -130,6 +156,7 @@ export function CodeEditor({
       </div>
 
       {/* Editor */}
+      <EditorErrorBoundary>
       <div style={{ height: 300 }}>
         <MonacoEditor
           height={300}
@@ -151,6 +178,7 @@ export function CodeEditor({
           theme="vs-dark"
         />
       </div>
+      </EditorErrorBoundary>
 
       {/* Test Results */}
       {testResults && (

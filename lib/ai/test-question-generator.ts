@@ -183,7 +183,8 @@ Rules:
 - maxScore should be 10 for all questions
 - criteria weights must sum to 1.0
 - expectedAnswer is required for all types
-- Make questions relevant to the "${role || "general"}" role`;
+- Make questions relevant to the "${role || "general"}" role
+- NEVER reference images, graphs, charts, diagrams, tables, or figures in questions. You cannot attach visual content. All questions must be fully self-contained as text. Instead of "the bar graph below shows...", include the data directly in the question text.`;
 
   const userMsg = [roleContext, resumeContext, `Generate ${count} ${domain} questions.`]
     .filter(Boolean)
