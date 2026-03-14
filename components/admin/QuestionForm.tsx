@@ -414,28 +414,12 @@ export default function QuestionForm({ initialData, questionId }: QuestionFormPr
   ) {
     setLoading(true);
     try {
-      // 1. Get presigned URL from our API
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type,
-          mediaType,
-        }),
-      });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("mediaType", mediaType);
+      const res = await fetch("/api/upload/direct", { method: "POST", body: formData });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to get upload URL");
-
-      // 2. Upload file directly to S3 via presigned URL
-      const uploadRes = await fetch(data.data.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!uploadRes.ok) throw new Error("Upload to S3 failed");
-
-      // 3. Set the public URL
+      if (!res.ok) throw new Error(data.error || "Upload failed");
       onUrl(data.data.fileUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");

@@ -13,8 +13,11 @@ export async function GET(req: NextRequest) {
     const authResult = await requireAuth(["admin", "teacher", "student"]);
     if (authResult instanceof NextResponse) return authResult;
 
-    // All roles see all folders (auto-matched by tags)
-    const folders = await QuestionFolder.find()
+    const { user } = authResult;
+
+    // Students only see published folders; admins/teachers see all
+    const filter = user.role === "student" ? { isPublished: true } : {};
+    const folders = await QuestionFolder.find(filter)
       .sort({ createdAt: -1 })
       .lean();
 

@@ -32,6 +32,7 @@ export interface IQuestion extends Document {
   expectedAnswer?: string;
   testCases?: { input: string; expectedOutput: string }[];
   answerFormat?: "text" | "code" | "file" | "voice" | "mcq" | "fill_in_blanks" | "matching" | "multi_select";
+  isTemporary?: boolean;
   tags: string[];
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -40,6 +41,7 @@ export interface IQuestion extends Document {
 const QuestionSchema = new Schema<IQuestion>(
   {
     folderId: { type: Schema.Types.ObjectId, ref: "QuestionFolder", required: true },
+    isTemporary: { type: Boolean, default: false },
     domain: {
       type: String,
       enum: ["english", "math", "aptitude", "coding", "hr", "situational", "general", "communication"],

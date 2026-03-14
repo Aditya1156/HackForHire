@@ -44,7 +44,7 @@ export function ProctorProvider({
 }) {
   const [violations, setViolations] = useState<Violation[]>([]);
   const [warningCount, setWarningCount] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(() => typeof document !== "undefined" && !!document.fullscreenElement);
   const [activeWarning, setActiveWarning] = useState<string | null>(null);
   const [showCamPreview, setShowCamPreview] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -215,6 +215,9 @@ export function ProctorProvider({
   useEffect(() => {
     if (!enabled) return;
 
+    // Sync current state in case fullscreen was entered before this effect ran
+    setIsFullscreen(!!document.fullscreenElement);
+
     const handleFullscreenChange = () => {
       const isFull = !!document.fullscreenElement;
       setIsFullscreen(isFull);
@@ -256,24 +259,13 @@ export function ProctorProvider({
           // Only upload if > 10KB
           if (blob.size > 10_000) {
             try {
-              const presignRes = await fetch("/api/upload", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  fileName: `proctoring_${testId}.webm`,
-                  fileType: "video/webm",
-                  mediaType: "video",
-                }),
-              });
-              const presignData = await presignRes.json();
-
-              if (presignData.success) {
-                await fetch(presignData.data.uploadUrl, {
-                  method: "PUT",
-                  headers: { "Content-Type": "video/webm" },
-                  body: blob,
-                });
-                recordingUrl = presignData.data.fileUrl;
+              const uploadForm = new FormData();
+              uploadForm.append("file", new File([blob], `proctoring_${testId}.webm`, { type: "video/webm" }));
+              uploadForm.append("mediaType", "video");
+              const uploadRes = await fetch("/api/upload/direct", { method: "POST", body: uploadForm });
+              const uploadData = await uploadRes.json();
+              if (uploadData.success) {
+                recordingUrl = uploadData.data.fileUrl;
               }
             } catch (uploadErr) {
               console.error("Recording upload failed:", uploadErr);

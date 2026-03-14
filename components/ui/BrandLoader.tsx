@@ -39,6 +39,7 @@ export default function BrandLoader({
           width={s.img}
           height={s.img}
           className="object-contain"
+          style={{ width: "auto", height: "auto" }}
           priority
         />
       </div>

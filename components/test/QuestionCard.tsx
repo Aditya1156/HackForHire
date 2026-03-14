@@ -1,4 +1,6 @@
+import { memo } from "react";
 import { KaTeXRenderer } from "@/components/shared/KaTeXRenderer";
+import { toDirectUrl } from "@/lib/utils/url";
 
 export interface QuestionData {
   _id: string;
@@ -41,7 +43,7 @@ const difficultyColors: Record<string, string> = {
   hard: "badge-hard",
 };
 
-export function QuestionCard({ question, index, total }: QuestionCardProps) {
+export const QuestionCard = memo(function QuestionCard({ question, index, total }: QuestionCardProps) {
   return (
     <div className="card p-6">
       {/* Header */}
@@ -98,6 +100,7 @@ export function QuestionCard({ question, index, total }: QuestionCardProps) {
             src={question.content.imageUrl}
             alt="Question illustration"
             className="w-full max-h-64 object-contain bg-white"
+            loading="lazy"
           />
         </div>
       )}
@@ -106,7 +109,7 @@ export function QuestionCard({ question, index, total }: QuestionCardProps) {
       {question.content.audioUrl && (
         <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <p className="text-xs text-gray-500 font-medium mb-2 uppercase tracking-wide">Audio</p>
-          <audio controls className="w-full" src={question.content.audioUrl}>
+          <audio controls className="w-full" src={toDirectUrl(question.content.audioUrl)}>
             Your browser does not support the audio element.
           </audio>
         </div>
@@ -132,4 +135,4 @@ export function QuestionCard({ question, index, total }: QuestionCardProps) {
       )}
     </div>
   );
-}
+});

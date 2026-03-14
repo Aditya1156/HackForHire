@@ -46,9 +46,11 @@ export async function evaluateAnswer(req: EvaluationRequest): Promise<IAIEvaluat
   if (req.codeExecutionResults) {
     userMessage += `\n\nCODE EXECUTION RESULTS:`;
     userMessage += `\nTest cases passed: ${req.codeExecutionResults.passed}/${req.codeExecutionResults.total}`;
-    req.codeExecutionResults.results.forEach((r, i) => {
-      userMessage += `\n  Case ${i + 1}: ${r.passed ? "PASS" : "FAIL"} | Input: ${r.input} | Expected: ${r.expected} | Got: ${r.actual}`;
-    });
+    if (req.codeExecutionResults.results?.length) {
+      req.codeExecutionResults.results.forEach((r, i) => {
+        userMessage += `\n  Case ${i + 1}: ${r.passed ? "PASS" : "FAIL"} | Input: ${r.input} | Expected: ${r.expected} | Got: ${r.actual}`;
+      });
+    }
   }
 
   try {

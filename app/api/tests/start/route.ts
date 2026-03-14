@@ -6,83 +6,83 @@ import QuestionFolder from "@/lib/db/models/QuestionFolder";
 import { requireAuth } from "@/lib/auth/clerk-auth";
 import { validateBody, successResponse, errorResponse } from "@/lib/utils/api-helpers";
 import { startTestSchema } from "@/lib/utils/validation";
-import { generateTestQuestions } from "@/lib/ai/test-question-generator";
+import { generateTestQuestions, getDomainsForRole } from "@/lib/ai/test-question-generator";
 import mongoose from "mongoose";
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Extract skill keywords from resume text for question matching.
- * Returns lowercase keywords for comparison.
- */
+// ── Skill extraction from resume text ────────────────────────────────────────
+const SKILL_PATTERNS = [
+  // Programming languages
+  "javascript", "typescript", "python", "java", "c\\+\\+", "c#", "go", "rust", "ruby", "php", "swift", "kotlin",
+  // Frontend
+  "react", "angular", "vue", "next\\.?js", "html", "css", "tailwind", "bootstrap", "svelte",
+  // Backend
+  "node\\.?js", "express", "django", "flask", "spring", "laravel", "fastapi", "nest\\.?js",
+  // Database
+  "sql", "mysql", "postgresql", "mongodb", "redis", "firebase", "dynamodb", "cassandra",
+  // Cloud / DevOps
+  "aws", "azure", "gcp", "docker", "kubernetes", "jenkins", "terraform", "ci/cd", "linux",
+  // Data / AI
+  "machine learning", "deep learning", "tensorflow", "pytorch", "pandas", "numpy", "data science",
+  "nlp", "computer vision", "scikit", "hadoop", "spark", "tableau", "power bi",
+  // Mobile
+  "react native", "flutter", "android", "ios", "swiftui",
+  // General
+  "git", "agile", "scrum", "rest api", "graphql", "microservices", "system design",
+  // Business / Finance
+  "excel", "tally", "sap", "erp", "financial modeling", "accounting", "gst", "taxation",
+  // Marketing
+  "seo", "sem", "google analytics", "social media", "content marketing", "copywriting",
+];
+
 function extractResumeSkills(resumeText: string): string[] {
   if (!resumeText) return [];
-
-  const skillPatterns = [
-    // Programming languages
-    "javascript", "typescript", "python", "java", "c\\+\\+", "c#", "go", "rust", "ruby", "php", "swift", "kotlin",
-    // Frontend
-    "react", "angular", "vue", "next\\.?js", "html", "css", "tailwind", "bootstrap", "svelte",
-    // Backend
-    "node\\.?js", "express", "django", "flask", "spring", "laravel", "fastapi", "nest\\.?js",
-    // Database
-    "sql", "mysql", "postgresql", "mongodb", "redis", "firebase", "dynamodb", "cassandra",
-    // Cloud / DevOps
-    "aws", "azure", "gcp", "docker", "kubernetes", "jenkins", "terraform", "ci/cd", "linux",
-    // Data / AI
-    "machine learning", "deep learning", "tensorflow", "pytorch", "pandas", "numpy", "data science",
-    "nlp", "computer vision", "scikit", "hadoop", "spark", "tableau", "power bi",
-    // Mobile
-    "react native", "flutter", "android", "ios", "swiftui",
-    // General
-    "git", "agile", "scrum", "rest api", "graphql", "microservices", "system design",
-    // Business / Finance
-    "excel", "tally", "sap", "erp", "financial modeling", "accounting", "gst", "taxation",
-    // Marketing
-    "seo", "sem", "google analytics", "social media", "content marketing", "copywriting",
-  ];
-
   const text = resumeText.toLowerCase();
   const found: string[] = [];
-
-  for (const pattern of skillPatterns) {
-    const regex = new RegExp(`\\b${pattern}\\b`, "i");
-    if (regex.test(text)) {
+  for (const pattern of SKILL_PATTERNS) {
+    if (new RegExp(`\\b${pattern}\\b`, "i").test(text)) {
       found.push(pattern.replace(/\\\./g, ".").replace(/\\\\\\+/g, "+"));
     }
   }
-
   return found;
 }
 
-/**
- * Score a question based on how well it matches resume skills.
- * Higher score = better match.
- */
-function scoreQuestionRelevance(
-  question: Record<string, unknown>,
-  resumeSkills: string[]
+// ── Score DB questions by relevance to resume + role ─────────────────────────
+function scoreQuestion(
+  q: Record<string, unknown>,
+  resumeSkills: string[],
+  roleDomains: string[]
 ): number {
-  if (resumeSkills.length === 0) return 0;
-
   let score = 0;
   const qText = (
-    ((question.content as { text?: string })?.text || "") +
+    ((q.content as { text?: string })?.text || "") +
     " " +
-    ((question.tags as string[]) || []).join(" ")
+    ((q.tags as string[]) || []).join(" ")
   ).toLowerCase();
+  const qDomain = (q.domain as string) || "";
 
+  // +3 points if the question's domain matches the role's expected domains
+  if (roleDomains.includes(qDomain)) score += 3;
+
+  // +1 point per resume skill mentioned in the question
   for (const skill of resumeSkills) {
-    if (qText.includes(skill)) {
-      score += 1;
-    }
+    if (qText.includes(skill)) score += 1;
   }
+
+  // +1 for medium difficulty, +2 for hard (prefer challenging questions)
+  const diff = (q.difficulty as string) || "medium";
+  if (diff === "medium") score += 1;
+  if (diff === "hard") score += 2;
 
   return score;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// POST /api/tests/start
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -98,11 +98,13 @@ export async function POST(req: NextRequest) {
     const role = (data.role || "general").trim();
     const resumeText = data.resumeText || "";
     const resumeSkills = extractResumeSkills(resumeText);
+    const roleDomains = getDomainsForRole(role);
 
+    // ── Step 1: Find relevant folders ──────────────────────────────────────
     let folders;
 
     if (data.folderId) {
-      // Direct folder selection — start test from a specific folder
+      // Direct folder selection
       if (!mongoose.Types.ObjectId.isValid(data.folderId)) {
         return errorResponse("Invalid folder ID", 400);
       }
@@ -110,122 +112,165 @@ export async function POST(req: NextRequest) {
       if (!folder) return errorResponse("Folder not found", 404);
       folders = [folder];
     } else {
-      // Role-based folder matching
+      // Smart folder matching: role tag → role domains → all published
       const roleRegex = new RegExp("^" + escapeRegex(role) + "$", "i");
+
+      // 1st: exact role tag match
       folders = await QuestionFolder.find({
+        isPublished: true,
         tags: { $elemMatch: { $regex: roleRegex } },
       }).lean();
+
+      // 2nd: match by role's relevant domains (e.g. "SDE" → coding, aptitude)
+      if (!folders || folders.length === 0) {
+        folders = await QuestionFolder.find({
+          isPublished: true,
+          domain: { $in: roleDomains },
+        }).lean();
+      }
+
+      // 3rd: all published folders
+      if (!folders || folders.length === 0) {
+        folders = await QuestionFolder.find({ isPublished: true }).lean();
+      }
     }
 
     if (!folders || folders.length === 0) {
       return errorResponse(
-        `No question sets found. Please check with your administrator.`,
+        "No question sets found. Please check with your administrator.",
         400
       );
     }
 
-    // For each matching folder, pick questions — prioritize resume-relevant ones
-    // If DB doesn't have enough, generate remaining with AI
-    const allSelected: Array<{ question: Record<string, unknown>; folderId: mongoose.Types.ObjectId; isGenerated?: boolean }> = [];
+    // ── Step 2: Collect & score all candidate questions ────────────────────
+    const allSelected: Array<{
+      question: Record<string, unknown>;
+      folderId: mongoose.Types.ObjectId;
+      isGenerated?: boolean;
+    }> = [];
 
-    for (const folder of folders) {
-      const questions = await Question.find({ folderId: folder._id }).lean();
-      const fetchCount = folder.fetchCount;
-      let picked: typeof questions = [];
+    // Gather all DB questions from matched folders in one pass
+    const folderIds = folders.map((f) => f._id);
+    const allDbQuestions = await Question.find({
+      folderId: { $in: folderIds },
+      isTemporary: { $ne: true },
+    }).lean();
 
-      if (questions.length > 0) {
-        if (resumeSkills.length > 0 && questions.length > fetchCount) {
-          // Score each question by resume relevance
-          const scored = questions.map((q) => ({
-            question: q,
-            relevance: scoreQuestionRelevance(q as Record<string, unknown>, resumeSkills),
-          }));
+    // Score every question by relevance
+    const scored = allDbQuestions.map((q) => ({
+      question: q as Record<string, unknown>,
+      score: scoreQuestion(q as Record<string, unknown>, resumeSkills, roleDomains),
+      folderId: (q as Record<string, unknown>).folderId as mongoose.Types.ObjectId,
+    }));
 
-          scored.sort((a, b) => {
-            if (b.relevance !== a.relevance) return b.relevance - a.relevance;
-            return Math.random() - 0.5;
+    // Sort by score descending, randomize ties
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return Math.random() - 0.5;
+    });
+
+    // ── Step 3: Pick questions with smart distribution ─────────────────────
+    const totalFetchCount = folders.reduce((sum, f) => sum + (f.fetchCount || 10), 0);
+    const targetCount = Math.min(totalFetchCount, scored.length || totalFetchCount);
+
+    // Ensure difficulty mix: ~30% easy, ~50% medium, ~20% hard
+    const targetEasy = Math.ceil(targetCount * 0.3);
+    const targetHard = Math.floor(targetCount * 0.2);
+    const targetMedium = targetCount - targetEasy - targetHard;
+
+    const pickedByDifficulty = { easy: 0, medium: 0, hard: 0 };
+    const picked: typeof scored = [];
+    const remaining: typeof scored = [];
+
+    // First pass: pick top-scored questions respecting difficulty caps
+    for (const item of scored) {
+      const diff = ((item.question.difficulty as string) || "medium") as keyof typeof pickedByDifficulty;
+      const cap = diff === "easy" ? targetEasy : diff === "hard" ? targetHard : targetMedium;
+
+      if (picked.length >= targetCount) break;
+
+      if ((pickedByDifficulty[diff] || 0) < cap) {
+        picked.push(item);
+        pickedByDifficulty[diff] = (pickedByDifficulty[diff] || 0) + 1;
+      } else {
+        remaining.push(item);
+      }
+    }
+
+    // Fill any remaining slots from overflow
+    for (const item of remaining) {
+      if (picked.length >= targetCount) break;
+      picked.push(item);
+    }
+
+    // Shuffle so questions aren't ordered by score
+    picked.sort(() => Math.random() - 0.5);
+
+    for (const item of picked) {
+      allSelected.push({
+        question: item.question,
+        folderId: item.folderId,
+      });
+    }
+
+    // ── Step 4: AI-generate remaining questions if DB has shortage ─────────
+    const shortage = targetCount - allSelected.length;
+    if (shortage > 0) {
+      try {
+        const existingTopics = allSelected
+          .map((s) => ((s.question.content as { text?: string })?.text || "").slice(0, 60))
+          .filter(Boolean);
+
+        // Pick the best domain for AI generation based on role
+        const aiDomain = roleDomains[0] || "general";
+
+        const generated = await generateTestQuestions({
+          domain: aiDomain,
+          count: shortage,
+          role,
+          resumeSkills,
+          resumeText,
+          existingTopics,
+        });
+
+        // Use first folder for storage
+        const storageFolderId = folders[0]._id;
+
+        for (const gq of generated) {
+          const savedQ = await Question.create({
+            folderId: storageFolderId,
+            domain: gq.domain,
+            type: gq.type,
+            difficulty: gq.difficulty,
+            answerFormat: gq.answerFormat,
+            content: gq.content,
+            rubric: gq.rubric,
+            expectedAnswer: gq.expectedAnswer,
+            testCases: gq.testCases,
+            tags: [...(gq.tags || []), "ai-generated", "resume-temp"],
+            createdBy: new mongoose.Types.ObjectId(user.userId),
+            isTemporary: true,
           });
 
-          const relevantCount = Math.ceil(fetchCount * 0.7);
-          const randomCount = fetchCount - relevantCount;
-
-          const relevant = scored.slice(0, relevantCount).map((s) => s.question);
-          const remaining = scored.slice(relevantCount);
-          remaining.sort(() => Math.random() - 0.5);
-          const random = remaining.slice(0, randomCount).map((s) => s.question);
-
-          picked = [...relevant, ...random];
-        } else {
-          const shuffled = [...questions].sort(() => Math.random() - 0.5);
-          picked = shuffled.slice(0, fetchCount);
-        }
-      }
-
-      // Final shuffle so relevant questions aren't all at the start
-      picked.sort(() => Math.random() - 0.5);
-
-      for (const q of picked) {
-        allSelected.push({ question: q as Record<string, unknown>, folderId: folder._id });
-      }
-
-      // If DB doesn't have enough questions, generate remaining with AI
-      const shortage = fetchCount - picked.length;
-      if (shortage > 0) {
-        try {
-          const existingTopics = picked.map((q) =>
-            ((q as Record<string, unknown>).content as { text?: string })?.text?.slice(0, 50) || ""
-          ).filter(Boolean);
-
-          const generated = await generateTestQuestions({
-            domain: folder.domain || "general",
-            count: shortage,
-            resumeSkills,
-            resumeText,
-            existingTopics,
+          allSelected.push({
+            question: savedQ.toObject() as unknown as Record<string, unknown>,
+            folderId: storageFolderId,
+            isGenerated: true,
           });
-
-          // Save generated questions to DB so they can be graded later
-          for (const gq of generated) {
-            const savedQ = await Question.create({
-              folderId: folder._id,
-              domain: gq.domain,
-              type: gq.type,
-              difficulty: gq.difficulty,
-              answerFormat: gq.answerFormat,
-              content: gq.content,
-              rubric: gq.rubric,
-              expectedAnswer: gq.expectedAnswer,
-              testCases: gq.testCases,
-              tags: [...(gq.tags || []), "ai-generated"],
-              createdBy: new mongoose.Types.ObjectId(user.userId),
-            });
-
-            // Update folder question count
-            await QuestionFolder.findByIdAndUpdate(folder._id, {
-              $inc: { questionCount: 1 },
-            });
-
-            allSelected.push({
-              question: savedQ.toObject() as unknown as Record<string, unknown>,
-              folderId: folder._id,
-              isGenerated: true,
-            });
-          }
-        } catch (aiError) {
-          console.error("AI question generation failed:", aiError);
-          // Continue with whatever DB questions we have
         }
+      } catch (aiError) {
+        console.error("AI question generation failed:", aiError);
       }
     }
 
     if (allSelected.length === 0) {
       return errorResponse(
-        `No questions available and AI generation failed. Please check with your administrator.`,
+        "No questions available and AI generation failed. Please check with your administrator.",
         400
       );
     }
 
-    // Build test questions array
+    // ── Step 5: Create test ────────────────────────────────────────────────
     const testQuestions = allSelected.map(({ question: q }) => ({
       questionId: q._id as mongoose.Types.ObjectId,
       answer: "",
@@ -256,9 +301,16 @@ export async function POST(req: NextRequest) {
       startedAt: new Date(),
     });
 
-    // Return test ID + sanitized questions (no rubric/expected answer details)
+    // ── Step 6: Return sanitized questions ─────────────────────────────────
     const sanitizedQuestions = allSelected.map(({ question: q }, idx) => {
-      const content = q.content as { text?: string; formula?: string; imageUrl?: string; audioUrl?: string; instructions?: string; options?: { label: string; text: string; isCorrect: boolean }[]; blanks?: { id: number; correctAnswer: string }[] };
+      const content = q.content as {
+        text?: string; formula?: string; imageUrl?: string; audioUrl?: string;
+        instructions?: string; wordLimit?: string;
+        options?: { label: string; text: string; isCorrect: boolean }[];
+        blanks?: { id: number; correctAnswer: string }[];
+        matchingPairs?: { id: number; item: string; correctMatch: string }[];
+        multiSelectCorrect?: string[];
+      };
       const rubric = q.rubric as { maxScore: number };
       const testCases = q.testCases as unknown[] | undefined;
 
@@ -273,19 +325,23 @@ export async function POST(req: NextRequest) {
           imageUrl: content.imageUrl,
           audioUrl: content.audioUrl,
           instructions: content.instructions,
-          // Send MCQ options without isCorrect so student can't see answers
-          ...(content.options && content.options.length > 0
+          wordLimit: content.wordLimit,
+          // Strip answers from client
+          ...(content.options?.length
             ? { options: content.options.map((o) => ({ label: o.label, text: o.text })) }
             : {}),
-          // Send blanks without correctAnswer so student can't see answers
-          ...(content.blanks && content.blanks.length > 0
+          ...(content.blanks?.length
             ? { blanks: content.blanks.map((b) => ({ id: b.id })) }
+            : {}),
+          ...(content.matchingPairs?.length
+            ? { matchingPairs: content.matchingPairs.map((p) => ({ id: p.id, item: p.item })) }
+            : {}),
+          ...(content.multiSelectCorrect?.length
+            ? { multiSelectCorrect: [] }
             : {}),
         },
         answerFormat: (q.answerFormat as string) ?? "text",
-        rubric: {
-          maxScore: rubric.maxScore,
-        },
+        rubric: { maxScore: rubric.maxScore },
         testCasesCount: testCases?.length ?? 0,
       };
     });

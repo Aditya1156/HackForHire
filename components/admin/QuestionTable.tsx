@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import BrandLoader from "@/components/ui/BrandLoader";
@@ -86,7 +86,7 @@ export default function QuestionTable() {
   const searchParams = useSearchParams();
   const urlFolderId = searchParams.get("folderId") || "";
 
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [rawQuestions, setRawQuestions] = useState<Question[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -102,12 +102,19 @@ export default function QuestionTable() {
   // The active folder ID — either from URL or from user selection
   const [activeFolderId, setActiveFolderId] = useState(urlFolderId);
 
+  // Debounce search input to avoid excessive re-fetches
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
   // Sync with URL param on mount
   useEffect(() => {
     if (urlFolderId) setActiveFolderId(urlFolderId);
   }, [urlFolderId]);
 
-  const activeFolder = folders.find((f) => f._id === activeFolderId);
+  const activeFolder = useMemo(
+    () => folders.find((f) => f._id === activeFolderId),
+    [folders, activeFolderId]
+  );
 
   const fetchFolders = useCallback(() => {
     fetch("/api/folders").then((r) => r.json()).then((d) => {
@@ -130,15 +137,7 @@ export default function QuestionTable() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to fetch");
 
-      let qs: Question[] = data.data.questions;
-      if (filters.search.trim()) {
-        const q = filters.search.toLowerCase();
-        qs = qs.filter((item) => item.content.text.toLowerCase().includes(q));
-      }
-      if (filters.type) {
-        qs = qs.filter((item) => item.type === filters.type);
-      }
-      setQuestions(qs);
+      setRawQuestions(data.data.questions);
       setTotal(data.data.total);
       setPages(data.data.pages);
     } catch (err) {
@@ -146,7 +145,20 @@ export default function QuestionTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, filters, activeFolderId]);
+  }, [page, filters.domain, filters.difficulty, activeFolderId]);
+
+  // Client-side filtering with useMemo to avoid recalculating on every render
+  const questions = useMemo(() => {
+    let qs = rawQuestions;
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
+      qs = qs.filter((item) => item.content.text.toLowerCase().includes(q));
+    }
+    if (filters.type) {
+      qs = qs.filter((item) => item.type === filters.type);
+    }
+    return qs;
+  }, [rawQuestions, debouncedSearch, filters.type]);
 
   useEffect(() => { fetchFolders(); }, [fetchFolders]);
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
@@ -167,12 +179,23 @@ export default function QuestionTable() {
   }
 
   function updateFilter(key: keyof Filters, value: string) {
+    if (key === "search") {
+      setFilters((prev) => ({ ...prev, search: value }));
+      // Debounce search filtering
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        setDebouncedSearch(value);
+      }, 300);
+      return;
+    }
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPage(1);
   }
 
   function resetFilters() {
     setFilters({ domain: "", difficulty: "", type: "", search: "" });
+    setDebouncedSearch("");
+    clearTimeout(debounceTimerRef.current);
     setPage(1);
   }
 
@@ -328,105 +351,9 @@ export default function QuestionTable() {
           ) : (
             /* ── Card Grid ── */
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {questions.map((q) => {
-                const typeCfg = TYPE_CONFIG[q.type] || TYPE_CONFIG.text;
-                const TypeIcon = typeCfg.icon;
-                const diffCfg = DIFFICULTY_COLORS[q.difficulty] || DIFFICULTY_COLORS.medium;
-                const domainColor = DOMAIN_COLORS[q.domain] || DOMAIN_COLORS.general;
-
-                return (
-                  <div
-                    key={q._id}
-                    className="bg-white rounded-2xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200 flex flex-col"
-                  >
-                    {/* Card Header */}
-                    <div className="p-4 pb-0 flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${typeCfg.iconBg} ${typeCfg.color}`}>
-                        <TypeIcon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${typeCfg.bg} ${typeCfg.color}`}>
-                            {typeCfg.label}
-                          </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${domainColor}`}>
-                            {q.domain}
-                          </span>
-                          <span className={`text-[10px] font-semibold flex items-center gap-1 ${diffCfg.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${diffCfg.dot}`} />
-                            {q.difficulty}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-900 leading-snug line-clamp-3">
-                          {q.content.text}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* MCQ Options Preview */}
-                    {q.type === "mcq" && q.content.options && q.content.options.length > 0 && (
-                      <div className="px-4 pt-2">
-                        <div className="flex flex-wrap gap-1">
-                          {q.content.options.map((opt) => (
-                            <span
-                              key={opt.label}
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium
-                                ${opt.isCorrect ? "bg-green-100 text-green-700 ring-1 ring-green-300" : "bg-gray-100 text-gray-500"}`}
-                            >
-                              {opt.label}: {opt.text.length > 20 ? opt.text.slice(0, 20) + "..." : opt.text}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Blanks Preview */}
-                    {q.content.blanks && q.content.blanks.length > 0 && (
-                      <div className="px-4 pt-2">
-                        <span className="text-[10px] font-semibold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">
-                          {q.content.blanks.length} blank{q.content.blanks.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Card Footer */}
-                    <div className="mt-auto p-4 pt-3">
-                      {q.tags && q.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2.5">
-                          {q.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} className="text-[9px] bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded font-medium">
-                              {tag}
-                            </span>
-                          ))}
-                          {q.tags.length > 3 && (
-                            <span className="text-[9px] text-gray-400 font-medium">+{q.tags.length - 3}</span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
-                        <span className="text-xs font-semibold text-gray-600">{q.rubric.maxScore} pts</span>
-                        <div className="flex items-center gap-1">
-                          <Link
-                            href={`/admin/questions/${q._id}/edit`}
-                            className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Link>
-                          <button
-                            onClick={() => setDeleteId(q._id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {questions.map((q) => (
+                <QuestionGridCard key={q._id} question={q} onDelete={setDeleteId} activeFolderId={activeFolderId} />
+              ))}
             </div>
           )}
 
@@ -487,3 +414,109 @@ export default function QuestionTable() {
     </div>
   );
 }
+
+/** Memoized question card for the grid to prevent unnecessary re-renders */
+const QuestionGridCard = memo(function QuestionGridCard({
+  question: q,
+  onDelete,
+  activeFolderId,
+}: {
+  question: Question;
+  onDelete: (id: string) => void;
+  activeFolderId: string;
+}) {
+  const typeCfg = TYPE_CONFIG[q.type] || TYPE_CONFIG.text;
+  const TypeIcon = typeCfg.icon;
+  const diffCfg = DIFFICULTY_COLORS[q.difficulty] || DIFFICULTY_COLORS.medium;
+  const domainColor = DOMAIN_COLORS[q.domain] || DOMAIN_COLORS.general;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200 flex flex-col">
+      {/* Card Header */}
+      <div className="p-4 pb-0 flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${typeCfg.iconBg} ${typeCfg.color}`}>
+          <TypeIcon className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${typeCfg.bg} ${typeCfg.color}`}>
+              {typeCfg.label}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${domainColor}`}>
+              {q.domain}
+            </span>
+            <span className={`text-[10px] font-semibold flex items-center gap-1 ${diffCfg.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${diffCfg.dot}`} />
+              {q.difficulty}
+            </span>
+          </div>
+          <p className="text-sm text-gray-900 leading-snug line-clamp-3">
+            {q.content.text}
+          </p>
+        </div>
+      </div>
+
+      {/* MCQ Options Preview */}
+      {q.type === "mcq" && q.content.options && q.content.options.length > 0 && (
+        <div className="px-4 pt-2">
+          <div className="flex flex-wrap gap-1">
+            {q.content.options.map((opt) => (
+              <span
+                key={opt.label}
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium
+                  ${opt.isCorrect ? "bg-green-100 text-green-700 ring-1 ring-green-300" : "bg-gray-100 text-gray-500"}`}
+              >
+                {opt.label}: {opt.text.length > 20 ? opt.text.slice(0, 20) + "..." : opt.text}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Blanks Preview */}
+      {q.content.blanks && q.content.blanks.length > 0 && (
+        <div className="px-4 pt-2">
+          <span className="text-[10px] font-semibold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">
+            {q.content.blanks.length} blank{q.content.blanks.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Card Footer */}
+      <div className="mt-auto p-4 pt-3">
+        {q.tags && q.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2.5">
+            {q.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="text-[9px] bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded font-medium">
+                {tag}
+              </span>
+            ))}
+            {q.tags.length > 3 && (
+              <span className="text-[9px] text-gray-400 font-medium">+{q.tags.length - 3}</span>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
+          <span className="text-xs font-semibold text-gray-600">{q.rubric.maxScore} pts</span>
+          <div className="flex items-center gap-1">
+            <Link
+              href={`/admin/questions/${q._id}/edit`}
+              className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+              title="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Link>
+            <button
+              onClick={() => onDelete(q._id)}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});

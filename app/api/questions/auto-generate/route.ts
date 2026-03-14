@@ -231,6 +231,8 @@ export async function POST(req: NextRequest) {
     const folderName = formData.get("folderName") as string | null;
     const folderDomain = formData.get("folderDomain") as string || "general";
     const audioUrl = formData.get("audioUrl") as string || "";
+    const folderTags = formData.get("folderTags") as string || "";
+    const folderPublished = formData.get("isPublished") as string;
 
     if (files.length === 0) {
       return errorResponse("No file uploaded", 400);
@@ -266,14 +268,15 @@ export async function POST(req: NextRequest) {
       targetFolderId = folderId;
     } else {
       const name = folderName || files.map(f => f.name.replace(/\.(pdf|docx?|txt)$/i, "")).join(" + ").replace(/[_-]/g, " ");
+      const parsedTags = folderTags ? folderTags.split(",").map(t => t.trim()).filter(Boolean) : [];
       const newFolder = await QuestionFolder.create({
         name,
         domain: folderDomain,
         description: `Auto-generated from: ${files.map(f => f.name).join(", ")}`,
-        tags: [],
+        tags: parsedTags,
         questionCount: 0,
         fetchCount: 10,
-        isPublished: true,
+        isPublished: folderPublished !== "false",
         createdBy: new mongoose.Types.ObjectId(user.userId),
       });
       targetFolderId = newFolder._id.toString();
@@ -346,8 +349,16 @@ export async function POST(req: NextRequest) {
 
     const created = await Question.insertMany(docs);
 
+    // Collect unique tags and format types in a single pass
+    const allTags = new Set<string>(["ai-generated"]);
+    for (const q of questions) {
+      if (q.tags) q.tags.forEach((t: string) => allTags.add(t));
+      if (q.answerFormat) allTags.add(q.answerFormat.replace(/_/g, " "));
+    }
+
     await QuestionFolder.findByIdAndUpdate(targetFolderId, {
       $inc: { questionCount: created.length },
+      $addToSet: { tags: { $each: Array.from(allTags) } },
     });
 
     return successResponse({

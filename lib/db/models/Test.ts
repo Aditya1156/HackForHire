@@ -107,7 +107,7 @@ const TestSchema = new Schema<ITest>(
     },
     proctoring: {
       enabled: { type: Boolean, default: false },
-      violations: [{ type: String, timestamp: Date, message: String }],
+      violations: [{ type: { type: String }, timestamp: Date, message: String }],
       warningCount: { type: Number, default: 0 },
       recordingUrl: String,
     },
@@ -119,6 +119,9 @@ const TestSchema = new Schema<ITest>(
 
 TestSchema.index({ userId: 1, status: 1 });
 TestSchema.index({ completedAt: -1 });
+TestSchema.index({ folderId: 1 });
+TestSchema.index({ mode: 1, status: 1 });
+TestSchema.index({ userId: 1, folderId: 1 });
 
 const Test: Model<ITest> = mongoose.models.Test || mongoose.model<ITest>("Test", TestSchema);
 export default Test;

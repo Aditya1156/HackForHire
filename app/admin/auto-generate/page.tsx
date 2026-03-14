@@ -140,20 +140,12 @@ export default function AutoGeneratePage() {
   const uploadAudioToS3 = async (file: File) => {
     setAudioUploading(true);
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, fileType: file.type || "audio/mpeg", mediaType: "audio" }),
-      });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("mediaType", "audio");
+      const res = await fetch("/api/upload/direct", { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
-
-      await fetch(data.data.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "audio/mpeg" },
-        body: file,
-      });
-
       setAudioUrl(data.data.fileUrl);
     } catch (err: any) {
       setError("Failed to upload audio: " + (err.message || "Unknown error"));

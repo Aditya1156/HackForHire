@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { toDirectUrl } from "@/lib/utils/url";
 
 interface AudioPlayerProps {
   src: string;
@@ -9,13 +10,21 @@ interface AudioPlayerProps {
   className?: string;
 }
 
-export function AudioPlayer({ src, label, className = "" }: AudioPlayerProps) {
+function formatTime(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+export const AudioPlayer = memo(function AudioPlayer({ src, label, className = "" }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const directSrc = toDirectUrl(src);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playError, setPlayError] = useState(false);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -47,7 +56,7 @@ export function AudioPlayer({ src, label, className = "" }: AudioPlayerProps) {
     };
   }, []);
 
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -56,42 +65,42 @@ export function AudioPlayer({ src, label, className = "" }: AudioPlayerProps) {
       setIsPlaying(false);
     } else {
       try {
+        setPlayError(false);
         await audio.play();
         setIsPlaying(true);
       } catch {
         setIsPlaying(false);
+        setPlayError(true);
       }
     }
-  };
+  }, [isPlaying]);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.muted = !isMuted;
     setIsMuted(!isMuted);
-  };
+  }, [isMuted]);
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current;
     if (!audio || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percent = x / rect.width;
     audio.currentTime = percent * duration;
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
+  }, [duration]);
 
   return (
     <div className={`bg-gray-50 border border-gray-200 rounded-lg p-3 ${className}`}>
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={directSrc} preload="metadata" />
 
       {label && (
         <p className="text-xs text-gray-500 mb-2 truncate">{label}</p>
+      )}
+
+      {playError && (
+        <p className="text-xs text-red-500 mb-2">Unable to play audio. The file may be unavailable.</p>
       )}
 
       <div className="flex items-center gap-3">
@@ -134,4 +143,4 @@ export function AudioPlayer({ src, label, className = "" }: AudioPlayerProps) {
       </div>
     </div>
   );
-}
+});

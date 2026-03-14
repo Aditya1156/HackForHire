@@ -23,6 +23,9 @@ import {
   Palette,
   ChevronDown,
   CheckCircle2,
+  Eye,
+  EyeOff,
+  Globe,
 } from "lucide-react";
 
 interface Folder {
@@ -248,6 +251,20 @@ export default function FolderManager() {
     }
   }
 
+  async function handleTogglePublish(folder: Folder) {
+    try {
+      const res = await fetch(`/api/folders/${folder._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublished: !folder.isPublished }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      fetchFolders();
+    } catch {
+      alert("Failed to update folder visibility");
+    }
+  }
+
   return (
     <div>
       {/* Header */}
@@ -313,6 +330,22 @@ export default function FolderManager() {
                   )}
                 </div>
                 <FolderOpen className="w-8 h-8 text-primary-200 flex-shrink-0" />
+              </div>
+
+              {/* Visibility badge */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleTogglePublish(folder)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    folder.isPublished
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                      : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
+                  }`}
+                  title={folder.isPublished ? "Visible to students — click to hide" : "Hidden from students — click to publish"}
+                >
+                  {folder.isPublished ? <Globe className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                  {folder.isPublished ? "Published" : "Hidden"}
+                </button>
               </div>
 
               {/* Stats */}

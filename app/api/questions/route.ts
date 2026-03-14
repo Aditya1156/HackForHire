@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10)));
 
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { isTemporary: { $ne: true } };
     if (folderId && mongoose.Types.ObjectId.isValid(folderId)) {
       filter.folderId = new mongoose.Types.ObjectId(folderId);
     }
